@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using System.IO.Compression;
 using System.Text;
+using System.Threading;
 using System.Web;
 using System.Web.SessionState;
 using DodoBrands.CosmosDbSessionProvider.Cosmos;
@@ -10,17 +11,23 @@ namespace DodoBrands.CosmosDbSessionProvider
 {
     public static class SerializationUtil
     {
-        public static byte[] Write(this SessionStateValue stateValue)
+        private static ThreadLocal<MemoryStream> _localMemoryStream;
+
+        public static byte[] Write(this SessionStateValue stateValue, bool compressed)
         {
-            return BinaryWriterOperationToByteBuffer(stateValue, SerializeSessionState);
+            return compressed
+                ? BinaryWriterOperationToByteBufferWithCompression(stateValue, SerializeSessionState)
+                : BinaryWriterOperationToByteBuffer(stateValue, SerializeSessionState);
         }
 
-        public static SessionStateValue ReadSessionState(this byte[] source)
+        public static SessionStateValue ReadSessionState(this byte[] source, bool compressed)
         {
-            return ByteBufferToReaderOperation(source, DeserializeSessionState);
+            return compressed
+                ? ByteBufferToReaderOperationWithCompression(source, DeserializeSessionState)
+                : ByteBufferToReaderOperation(source, DeserializeSessionState);
         }
-        
-        public static byte[] BinaryWriterOperationToByteBuffer<T>(T state, Action<BinaryWriter, T> write)
+
+        private static byte[] BinaryWriterOperationToByteBuffer<T>(T state, Action<BinaryWriter, T> write)
         {
             using (var stream = new MemoryStream())
             {
@@ -29,9 +36,28 @@ namespace DodoBrands.CosmosDbSessionProvider
                     write(writer, state);
                     writer.Flush();
                 }
+
                 stream.Position = 0;
                 var plainData = stream.ToArray();
-                
+
+                return plainData;
+            }
+        }
+
+        private static byte[] BinaryWriterOperationToByteBufferWithCompression<T>(T state,
+            Action<BinaryWriter, T> write)
+        {
+            using (var stream = new MemoryStream())
+            {
+                using (var writer = new BinaryWriter(stream, Encoding.Default, leaveOpen: true))
+                {
+                    write(writer, state);
+                    writer.Flush();
+                }
+
+                stream.Position = 0;
+                var plainData = stream.ToArray();
+
                 stream.SetLength(0);
                 using (var zip = new GZipStream(stream, CompressionLevel.Optimal, leaveOpen: true))
                 {
@@ -45,6 +71,17 @@ namespace DodoBrands.CosmosDbSessionProvider
         }
 
         private static T ByteBufferToReaderOperation<T>(byte[] source, Func<BinaryReader, T> read)
+        {
+            using (var stream = new MemoryStream(source))
+            {
+                using (var reader = new BinaryReader(stream, Encoding.Default))
+                {
+                    return read(reader);
+                }
+            }
+        }
+
+        private static T ByteBufferToReaderOperationWithCompression<T>(byte[] source, Func<BinaryReader, T> read)
         {
             using (var stream = new MemoryStream(source))
             {
@@ -69,6 +106,7 @@ namespace DodoBrands.CosmosDbSessionProvider
             {
                 s.SessionItems.Serialize(writer);
             }
+
             if (hasStaticObjects)
             {
                 s.StaticObjects.Serialize(writer);

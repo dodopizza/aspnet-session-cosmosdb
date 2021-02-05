@@ -16,7 +16,8 @@ namespace DodoBrands.CosmosDbSessionProvider.Cosmos
     /// </remarks>
     public class SessionDatabaseInProcessEmulation : ISessionContentsDatabase
     {
-        private int LockTtlSeconds = 30;
+        private readonly int _lockTtlSeconds;
+        private readonly bool _compress;
 
         private List<string> _contents =
             new List<string>();
@@ -28,8 +29,10 @@ namespace DodoBrands.CosmosDbSessionProvider.Cosmos
 
         private static readonly TraceSource _trace = new TraceSource("DodoBrands.CosmosDbSessionProvider.Cosmos.SessionDatabaseInProcessEmulation");
 
-        public SessionDatabaseInProcessEmulation(int lockTtlSeconds)
+        public SessionDatabaseInProcessEmulation(int lockTtlSeconds, bool compress)
         {
+            _lockTtlSeconds = lockTtlSeconds;
+            _compress = compress;
             Task.Factory.StartNew(async () =>
             {
                 while (true)
@@ -85,7 +88,7 @@ namespace DodoBrands.CosmosDbSessionProvider.Cosmos
             
             _ = ExtendLifespan(sessionId, storedState.CreatedDate, TimeSpan.FromSeconds(storedState.TtlSeconds));
             
-            return (storedState.Payload?.ReadSessionState(), storedState.IsNew == "yes");
+            return (storedState.Payload?.ReadSessionState(storedState.Compressed), storedState.IsNew == "yes");
         }
 
         public async Task Remove(string sessionId)
@@ -147,7 +150,7 @@ namespace DodoBrands.CosmosDbSessionProvider.Cosmos
                 {
                     var eTag = Guid.NewGuid().ToString("N");
                     _locks.Add(Serialize(new SessionLockRecord
-                        {SessionId = sessionId, CreatedDate = now, TtlSeconds = LockTtlSeconds, ETag = eTag}));
+                        {SessionId = sessionId, CreatedDate = now, TtlSeconds = _lockTtlSeconds, ETag = eTag}));
                     return (true, now, eTag);
                 }
 
@@ -187,7 +190,8 @@ namespace DodoBrands.CosmosDbSessionProvider.Cosmos
                     CreatedDate = now,
                     TtlSeconds = stateValue.Timeout * 60,
                     IsNew = isNew ? "yes" : null,
-                    Payload = stateValue.Write(),
+                    Payload = stateValue.Write(_compress),
+                    Compressed = _compress
                 }));
             }
         }

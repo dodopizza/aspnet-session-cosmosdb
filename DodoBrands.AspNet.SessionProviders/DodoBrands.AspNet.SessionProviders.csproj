@@ -135,13 +135,13 @@
         <Compile Include="Cosmos\CosmosDBSessionStateProviderAsync.cs" />
         <Compile Include="Cosmos\CosmosSessionDatabase.cs" />
         <Compile Include="Cosmos\SessionDatabaseInProcessEmulation.cs" />
-        <Compile Include="Cosmos\SessionLockRecord.cs" />
-        <Compile Include="Cosmos\SessionStateValue.cs" />
         <Compile Include="Cosmos\StringResources.cs" />
         <Compile Include="CustomSessionUtil.cs" />
         <Compile Include="ISessionContentsDatabase.cs" />
         <Compile Include="Properties\AssemblyInfo.cs" />
         <Compile Include="SerializationUtil.cs" />
+        <Compile Include="SessionLockRecord.cs" />
+        <Compile Include="SessionStateValue.cs" />
     </ItemGroup>
     <ItemGroup>
       <None Include="packages.config" />

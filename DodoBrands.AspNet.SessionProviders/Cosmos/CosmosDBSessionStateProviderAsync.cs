@@ -1,10 +1,12 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Specialized;
+using System.Configuration;
 using System.Diagnostics.CodeAnalysis;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Web;
+using System.Web.Configuration;
 using System.Web.SessionState;
 using Microsoft.AspNet.SessionState;
 
@@ -17,6 +19,8 @@ namespace DodoBrands.CosmosDbSessionProvider.Cosmos
     // ReSharper disable once UnusedType.Global
     public sealed class CosmosDbSessionStateProviderAsync : SessionStateStoreProviderAsyncBase
     {
+        private const string SESSIONSTATE_SECTION_PATH = "system.web/sessionState";
+
         private ISessionContentsDatabase _store;
 
         [SuppressMessage("ReSharper", "EmptyConstructor")]
@@ -37,10 +41,14 @@ namespace DodoBrands.CosmosDbSessionProvider.Cosmos
             base.Initialize(name, config);
 
             // Don't ask me why it is prefixed with "x", if you name it just lockTtlSeconds it would fail without an error message.
-            var lockTtlSeconds = ConfigHelper.Get(config, "xLockTtlSeconds", 30);
+            var lockTtlSeconds = ConfigHelper.GetInt32(config, "xLockTtlSeconds", 30);
+
+            var ssc = (SessionStateSection) ConfigurationManager.GetSection(SESSIONSTATE_SECTION_PATH);
+            var compressionEnabled = ssc.CompressionEnabled;
 
             _store = _databases.GetOrAdd(name, n => new Lazy<ISessionContentsDatabase>(
-                    () => new SessionDatabaseInProcessEmulation(lockTtlSeconds), LazyThreadSafetyMode.PublicationOnly))
+                    () => new SessionDatabaseInProcessEmulation(lockTtlSeconds, compressionEnabled),
+                    LazyThreadSafetyMode.PublicationOnly))
                 .Value;
         }
 

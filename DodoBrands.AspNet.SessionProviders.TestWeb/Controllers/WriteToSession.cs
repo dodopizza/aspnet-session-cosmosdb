@@ -1,4 +1,5 @@
 using System;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Web.Mvc;
@@ -21,7 +22,7 @@ namespace DodoBrands.AspNet.SessionProviders.TestWeb.Controllers
             }
 
             await Task.Delay(random.Next(1000, 2000));
-            
+
             var o = Session["Counter"];
             if (o == null)
             {
@@ -31,6 +32,16 @@ namespace DodoBrands.AspNet.SessionProviders.TestWeb.Controllers
             {
                 Session["Counter"] = (int) o + 1;
             }
+
+            var sb = new StringBuilder();
+
+            for (var i = 0; i < 1000; i++)
+            {
+                sb.Append(random.Next());
+            }
+
+            Session["TonOfStuffForProfiling"] = sb.ToString();
+
             return View();
         }
     }

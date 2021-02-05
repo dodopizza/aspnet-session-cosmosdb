@@ -3,22 +3,23 @@ using System.Web;
 using System.Web.SessionState;
 using Newtonsoft.Json;
 
-namespace DodoBrands.CosmosDbSessionProvider.Cosmos
+namespace DodoBrands.CosmosDbSessionProvider
 {
     public sealed class SessionStateRecord
     {
-        [JsonProperty(PropertyName="id")]
-        public string SessionId { get; set; }
-        
-        [JsonProperty(PropertyName="ttl")]
-        public int TtlSeconds { get; set; }
-        
-        [JsonProperty(NullValueHandling=NullValueHandling.Ignore, PropertyName="_etag")]
+        [JsonProperty(PropertyName = "id")] public string SessionId { get; set; }
+
+        [JsonProperty(PropertyName = "ttl")] public int TtlSeconds { get; set; }
+
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore, PropertyName = "_etag")]
         public string ETag { get; }
 
-        [JsonProperty(NullValueHandling=NullValueHandling.Ignore, PropertyName="Payload")]
+        [JsonProperty(PropertyName = "compressed")]
+        public bool Compressed { get; set; }
+
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore, PropertyName = "Payload")]
         public byte[] Payload { get; set; }
-        
+
         [JsonProperty(PropertyName = "CreatedDate")]
         public DateTime CreatedDate { get; set; }
 
@@ -29,7 +30,7 @@ namespace DodoBrands.CosmosDbSessionProvider.Cosmos
     public sealed class SessionStateValue
     {
         public int Timeout { get; }
-        
+
         public SessionStateItemCollection SessionItems { get; }
 
         public HttpStaticObjectsCollection StaticObjects { get; }
