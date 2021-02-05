@@ -1,0 +1,1 @@
+﻿<%@ Application Codebehind="Global.asax.cs" Inherits="DodoBrands.AspNet.SessionProviders.TestWeb.MvcApplication" Language="C#" %>
