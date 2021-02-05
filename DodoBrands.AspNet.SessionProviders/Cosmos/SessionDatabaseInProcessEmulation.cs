@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Threading.Tasks;
+using Newtonsoft.Json;
 
 namespace DodoBrands.CosmosDbSessionProvider.Cosmos
 {
@@ -10,25 +11,24 @@ namespace DodoBrands.CosmosDbSessionProvider.Cosmos
     /// SessionDatabaseInProcessEmulation is here for test purposes.
     /// It closely models what should happen in database backend.
     /// </summary>
+    /// <remarks>This in-memory implementation should not be used in production by no means.
+    /// It is not optimized, and will suffer algorithmic complexity issues.
+    /// </remarks>
     public class SessionDatabaseInProcessEmulation : ISessionContentsDatabase
     {
-        private const int LockTtlSeconds = 30;
-        private static readonly TimeSpan TimeoutResetInterval = TimeSpan.FromMinutes(10);
+        private int LockTtlSeconds = 30;
 
-        private List<SessionStateRecord> _contents =
-            new List<SessionStateRecord>();
+        private List<string> _contents =
+            new List<string>();
 
-        private List<SessionLockRecord> _locks =
-            new List<SessionLockRecord>();
-
-        private List<(string sessionId, DateTime touchedAt)> _recentlyUpdated =
-            new List<(string sessionId, DateTime touchedAt)>();
+        private List<string> _locks =
+            new List<string>();
 
         private readonly object _locker = new object();
 
         private static readonly TraceSource _trace = new TraceSource("DodoBrands.CosmosDbSessionProvider.Cosmos.SessionDatabaseInProcessEmulation");
 
-        public SessionDatabaseInProcessEmulation()
+        public SessionDatabaseInProcessEmulation(int lockTtlSeconds)
         {
             Task.Factory.StartNew(async () =>
             {
@@ -54,14 +54,18 @@ namespace DodoBrands.CosmosDbSessionProvider.Cosmos
                 var now = DateTime.UtcNow;
                 var countBefore = _contents.Count;
                 _contents = _contents
+                    .Select(Deserialize<SessionStateRecord>)
                     .Where(x => x.CreatedDate >= now - TimeSpan.FromSeconds(x.TtlSeconds))
+                    .Select(Serialize)
                     .ToList();
                 var countAfter = _contents.Count;
                 
                 _trace.TraceEvent(TraceEventType.Verbose, 0, $"Removing old sessions. Before: {countBefore}, After: {countAfter}");
                 
                 _locks = _locks
+                    .Select(Deserialize<SessionLockRecord>)
                     .Where(x => x.CreatedDate >= now - TimeSpan.FromSeconds(x.TtlSeconds))
+                    .Select(Serialize)
                     .ToList();
             }
         }
@@ -69,11 +73,19 @@ namespace DodoBrands.CosmosDbSessionProvider.Cosmos
         public async Task<(SessionStateValue state, bool isNew)> GetSessionAsync(string sessionId)
         {
             await Task.Yield();
+            
             var storedState = _contents
+                .Select(Deserialize<SessionStateRecord>)
                 .SingleOrDefault(x => x.SessionId == sessionId);
-            return storedState == null
-                ? (null, false)
-                : (storedState.Payload?.ReadSessionState(), storedState.IsNew == "yes");
+
+            if (storedState == null)
+            {
+                return (null, false);
+            }
+            
+            _ = ExtendLifespan(sessionId, storedState.CreatedDate, TimeSpan.FromSeconds(storedState.TtlSeconds));
+            
+            return (storedState.Payload?.ReadSessionState(), storedState.IsNew == "yes");
         }
 
         public async Task Remove(string sessionId)
@@ -81,30 +93,44 @@ namespace DodoBrands.CosmosDbSessionProvider.Cosmos
             await Task.Yield();
             lock (_locker)
             {
-                _contents = _contents.Where(x => x.SessionId != sessionId).ToList();
+                _contents = _contents
+                    .Select(Deserialize<SessionStateRecord>)
+                    .Where(x => x.SessionId != sessionId)
+                    .Select(Serialize)
+                    .ToList();
             }
         }
 
-        public async Task ResetTimeout(string sessionId)
+        private async Task ExtendLifespan(string sessionId, DateTime createdDate, TimeSpan ttl)
         {
             var now = DateTime.UtcNow;
+
+            var proximityFactor = 1.0 / 3.0;
+
+            var secondsBeforeExpiration = (createdDate - now + ttl).TotalSeconds;
+
+            var toleratedSecondsBeforeExpiration = ttl.TotalSeconds * (1.0 - proximityFactor); 
+            
+            if (secondsBeforeExpiration > toleratedSecondsBeforeExpiration)
+            {
+                return;
+            }
+            
             await Task.Yield();
             lock (_locker)
             {
-                var recentlyUpdated = _recentlyUpdated.Any(x =>
-                    x.sessionId == sessionId && x.touchedAt >= now - TimeoutResetInterval);
-
-                if (recentlyUpdated)
-                {
-                    return;
-                }
-                
-                var state = _contents.SingleOrDefault(x => x.SessionId == sessionId);
-                if (state == null)
-                {
-                    return;
-                }
-                state.CreatedDate = now;
+                _contents = _contents
+                    .Select(old =>
+                    {
+                        var x = Deserialize<SessionStateRecord>(old);
+                        if (x.SessionId != sessionId)
+                        {
+                            return old;
+                        }
+                        x.CreatedDate = now;
+                        return Serialize(x);
+                    })
+                    .ToList();
             }
         }
 
@@ -114,12 +140,14 @@ namespace DodoBrands.CosmosDbSessionProvider.Cosmos
             await Task.Yield();
             lock (_locker)
             {
-                var l = _locks.SingleOrDefault(x => x.SessionId == sessionId);
+                var l = _locks
+                    .Select(Deserialize<SessionLockRecord>)
+                    .SingleOrDefault(x => x.SessionId == sessionId);
                 if (l == null)
                 {
                     var eTag = Guid.NewGuid().ToString("N");
-                    _locks.Add(new SessionLockRecord
-                        {SessionId = sessionId, CreatedDate = now, TtlSeconds = LockTtlSeconds, ETag = eTag});
+                    _locks.Add(Serialize(new SessionLockRecord
+                        {SessionId = sessionId, CreatedDate = now, TtlSeconds = LockTtlSeconds, ETag = eTag}));
                     return (true, now, eTag);
                 }
 
@@ -133,7 +161,9 @@ namespace DodoBrands.CosmosDbSessionProvider.Cosmos
             lock (_locker)
             {
                 _locks = _locks
+                    .Select(Deserialize<SessionLockRecord>)
                     .Where(l => !(l.SessionId == sessionId && l.ETag == (string) lockId))
+                    .Select(Serialize)
                     .ToList();
             }
         }
@@ -145,17 +175,31 @@ namespace DodoBrands.CosmosDbSessionProvider.Cosmos
             await Task.Yield();
             lock (_locker)
             {
-                _contents = _contents.Where(x => x.SessionId != sessionId).ToList();
+                _contents = _contents
+                    .Select(Deserialize<SessionStateRecord>)
+                    .Where(x => x.SessionId != sessionId)
+                    .Select(Serialize)
+                    .ToList();
                 
-                _contents.Add(new SessionStateRecord
+                _contents.Add(Serialize(new SessionStateRecord
                 {
                     SessionId = sessionId,
                     CreatedDate = now,
                     TtlSeconds = stateValue.Timeout * 60,
                     IsNew = isNew ? "yes" : null,
                     Payload = stateValue.Write(),
-                });
+                }));
             }
+        }
+
+        private string Serialize(object record)
+        {
+            return JsonConvert.SerializeObject(record);
+        }
+
+        private T Deserialize<T>(string json)
+        {
+            return JsonConvert.DeserializeObject<T>(json);
         }
     }
 }

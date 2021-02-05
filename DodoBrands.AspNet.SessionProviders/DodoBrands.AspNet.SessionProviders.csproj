@@ -131,6 +131,7 @@
         <Reference Include="System.Xml" />
     </ItemGroup>
     <ItemGroup>
+        <Compile Include="ConfigHelper.cs" />
         <Compile Include="Cosmos\CosmosDBSessionStateProviderAsync.cs" />
         <Compile Include="Cosmos\CosmosSessionDatabase.cs" />
         <Compile Include="Cosmos\SessionDatabaseInProcessEmulation.cs" />

@@ -17,8 +17,6 @@ namespace DodoBrands.CosmosDbSessionProvider.Cosmos
     // ReSharper disable once UnusedType.Global
     public sealed class CosmosDbSessionStateProviderAsync : SessionStateStoreProviderAsyncBase
     {
-        private readonly TimeSpan _sessionTimeout = TimeSpan.FromMinutes(20);
-        
         private ISessionContentsDatabase _store;
 
         [SuppressMessage("ReSharper", "EmptyConstructor")]
@@ -28,7 +26,7 @@ namespace DodoBrands.CosmosDbSessionProvider.Cosmos
 
         private static readonly ConcurrentDictionary<string, Lazy<ISessionContentsDatabase>> _databases =
             new ConcurrentDictionary<string, Lazy<ISessionContentsDatabase>>();
-        
+
         public override void Initialize(string name, NameValueCollection config)
         {
             if (string.IsNullOrEmpty(name))
@@ -38,8 +36,11 @@ namespace DodoBrands.CosmosDbSessionProvider.Cosmos
 
             base.Initialize(name, config);
 
-            _store = _databases.GetOrAdd(name, n=> new Lazy<ISessionContentsDatabase>(
-                    ()=>new SessionDatabaseInProcessEmulation() , LazyThreadSafetyMode.PublicationOnly))
+            // Don't ask me why it is prefixed with "x", if you name it just lockTtlSeconds it would fail without an error message.
+            var lockTtlSeconds = ConfigHelper.Get(config, "xLockTtlSeconds", 30);
+
+            _store = _databases.GetOrAdd(name, n => new Lazy<ISessionContentsDatabase>(
+                    () => new SessionDatabaseInProcessEmulation(lockTtlSeconds), LazyThreadSafetyMode.PublicationOnly))
                 .Value;
         }
 
@@ -84,7 +85,7 @@ namespace DodoBrands.CosmosDbSessionProvider.Cosmos
             CancellationToken cancellationToken)
         {
             AssertIdValid(id);
-            
+
             return _store.TryReleaseLock(id, lockId);
         }
 
@@ -103,9 +104,7 @@ namespace DodoBrands.CosmosDbSessionProvider.Cosmos
         public override Task ResetItemTimeoutAsync(HttpContextBase context, string id,
             CancellationToken cancellationToken)
         {
-            AssertIdValid(id);
-            
-            return _store.ResetTimeout(id);
+            return Task.CompletedTask;
         }
 
         /// <summary>
@@ -125,9 +124,9 @@ namespace DodoBrands.CosmosDbSessionProvider.Cosmos
             CancellationToken cancellationToken)
         {
             AssertIdValid(id);
-            
+
             var state = item.ExtractDataForStorage();
-            
+
             try
             {
                 await _store.WriteContents(id, state, isNew: false);
@@ -151,11 +150,11 @@ namespace DodoBrands.CosmosDbSessionProvider.Cosmos
             object lockId = null;
             bool lockTaken = false;
             DateTime lockDate = DateTime.MinValue;
-            
+
             if (exclusive)
             {
                 (lockTaken, lockDate, lockId) = await _store.TryAcquireLock(id);
-                
+
                 if (!lockTaken)
                 {
                     // Lock not taken means it's already locked by other user.
@@ -165,13 +164,14 @@ namespace DodoBrands.CosmosDbSessionProvider.Cosmos
             }
 
             var (state, isNew) = await _store.GetSessionAsync(id);
-            
+
             if (state == null)
             {
                 if (exclusive && lockTaken)
                 {
                     await _store.TryReleaseLock(id, lockId);
                 }
+
                 return null;
             }
 
