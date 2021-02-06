@@ -3,6 +3,7 @@ using System.Collections.Concurrent;
 using System.Collections.Specialized;
 using System.Configuration;
 using System.Diagnostics.CodeAnalysis;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Web;
@@ -46,11 +47,50 @@ namespace DodoBrands.CosmosDbSessionProvider.Cosmos
             var ssc = (SessionStateSection) ConfigurationManager.GetSection(SESSIONSTATE_SECTION_PATH);
             var compressionEnabled = ssc.CompressionEnabled;
 
+            var cosmosConnectionStringConfig = config["cosmosConnectionString"];
+            if (string.IsNullOrWhiteSpace(cosmosConnectionStringConfig))
+            {
+                throw new ConfigurationErrorsException("cosmosConnectionString is not specified.");
+            }
+
+            string cosmosConnectionString = cosmosConnectionStringConfig;
+            if (cosmosConnectionStringConfig.StartsWith("Env:"))
+            {
+                var envVarName = cosmosConnectionString.Split(':')[1];
+                if (string.IsNullOrWhiteSpace(envVarName))
+                {
+                    throw new ConfigurationErrorsException(
+                        "cosmosConnectionString environment variable is incorrectly specified. Should be specified as Env:ENV_VAR_NAME");
+                }
+
+                cosmosConnectionString = Environment.GetEnvironmentVariable(envVarName);
+            }
+
+            var databaseId = config["databaseId"];
+            if (string.IsNullOrWhiteSpace(databaseId))
+            {
+                throw new ConfigurationErrorsException("databaseId is not specified.");
+            }
+
+            if (cosmosConnectionString.StartsWith(@"""") && cosmosConnectionString.EndsWith(@""""))
+            {
+                cosmosConnectionString = cosmosConnectionString.Substring(1, cosmosConnectionString.Length - 2);
+            }
+
             _store = _databases.GetOrAdd(name, n => new Lazy<ISessionContentsDatabase>(
-                    () => new SessionDatabaseInProcessEmulation(lockTtlSeconds, compressionEnabled),
+                    () => new CosmosSessionDatabase(databaseId, cosmosConnectionString, lockTtlSeconds,
+                        compressionEnabled),
                     LazyThreadSafetyMode.PublicationOnly))
                 .Value;
+
+            _store.Initialize();
+            // _store = _databases.GetOrAdd(name, n => new Lazy<ISessionContentsDatabase>(
+            //         () => new SessionDatabaseInProcessEmulation(lockTtlSeconds, compressionEnabled),
+            //         LazyThreadSafetyMode.PublicationOnly))
+            //     .Value;
         }
+
+        private Regex connectionStringRegex = new Regex(@"\""(?'cs'.*)\""");
 
         public override async Task CreateUninitializedItemAsync(
             HttpContextBase context,

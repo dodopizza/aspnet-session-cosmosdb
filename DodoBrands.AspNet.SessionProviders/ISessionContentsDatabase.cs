@@ -1,6 +1,5 @@
 using System;
 using System.Threading.Tasks;
-using DodoBrands.CosmosDbSessionProvider.Cosmos;
 
 namespace DodoBrands.CosmosDbSessionProvider
 {
@@ -11,5 +10,6 @@ namespace DodoBrands.CosmosDbSessionProvider
         Task<(bool lockTaken, DateTime lockDate, object lockId)> TryAcquireLock(string sessionId);
         Task TryReleaseLock(string sessionId, object lockId);
         Task WriteContents(string sessionId, SessionStateValue stateValue, bool isNew);
+        void Initialize();
     }
 }

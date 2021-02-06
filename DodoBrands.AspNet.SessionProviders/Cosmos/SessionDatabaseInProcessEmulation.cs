@@ -196,6 +196,10 @@ namespace DodoBrands.CosmosDbSessionProvider.Cosmos
             }
         }
 
+        public void Initialize()
+        {
+        }
+
         private string Serialize(object record)
         {
             return JsonConvert.SerializeObject(record);
