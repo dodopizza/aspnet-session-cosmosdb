@@ -10,11 +10,10 @@ namespace DodoBrands.AspNet.SessionProviders.TestWeb.Controllers
     [SessionState(SessionStateBehavior.Required)]
     public class WriteToSessionController : Controller
     {
-        // GET
         public async Task<ActionResult> Index()
         {
             var random = _random.Value;
-            await Task.Delay(random.Next(500, 1500));
+            //await Task.Delay(random.Next(500, 1500));
 
             var o = Session["Counter"];
             if (o == null)

@@ -53,10 +53,19 @@ namespace DodoBrands.AspNet.SessionProviders.Cosmos
             var ssc = (SessionStateSection) ConfigurationManager.GetSection(SessionstateSectionPath);
             var compressionEnabled = ssc.CompressionEnabled;
 
-            var cosmosConnectionStringConfig = config["cosmosConnectionString"];
+            var connectionStringName = config["connectionStringName"];
+            if (string.IsNullOrWhiteSpace(connectionStringName))
+            {
+                throw new ConfigurationErrorsException("connectionStringName is not specified.");
+            }
+
+            var connectionStrings = ConfigurationManager.ConnectionStrings;
+
+            var cosmosConnectionStringConfig = connectionStrings[connectionStringName].ConnectionString;
             if (string.IsNullOrWhiteSpace(cosmosConnectionStringConfig))
             {
-                throw new ConfigurationErrorsException("cosmosConnectionString is not specified.");
+                throw new ConfigurationErrorsException(
+                    $"connectionString attribute is not specified for connectionString named {connectionStringName}");
             }
 
             var cosmosConnectionString = cosmosConnectionStringConfig;
@@ -66,7 +75,7 @@ namespace DodoBrands.AspNet.SessionProviders.Cosmos
                 if (string.IsNullOrWhiteSpace(envVarName))
                 {
                     throw new ConfigurationErrorsException(
-                        "cosmosConnectionString environment variable is incorrectly specified. Environment variable should be specified as Env:ENV_VAR_NAME");
+                        "Environment variable is incorrectly specified in the connection string. Environment variable should be specified as Env:ENV_VAR_NAME");
                 }
 
                 cosmosConnectionString = Environment.GetEnvironmentVariable(envVarName);
@@ -226,7 +235,8 @@ namespace DodoBrands.AspNet.SessionProviders.Cosmos
                 }
             }
 
-            var (state, isNew) = await _store.GetSessionAsync(id);
+            var extendLifespan = !exclusive;
+            var (state, isNew) = await _store.GetSessionAsync(id, extendLifespan);
 
             if (state == null)
             {

@@ -75,7 +75,7 @@ namespace DodoBrands.AspNet.SessionProviders.Cosmos
             }
         }
 
-        public async Task<(SessionStateValue state, bool isNew)> GetSessionAsync(string sessionId)
+        public async Task<(SessionStateValue state, bool isNew)> GetSessionAsync(string sessionId, bool extendLifespan)
         {
             await Task.Yield();
 

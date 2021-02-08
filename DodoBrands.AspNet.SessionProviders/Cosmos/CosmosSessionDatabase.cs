@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Net;
 using System.Threading.Tasks;
+using System.Web.Hosting;
 using Microsoft.Azure.Cosmos;
 using Microsoft.Azure.Cosmos.Scripts;
 
@@ -40,10 +41,10 @@ namespace DodoBrands.AspNet.SessionProviders.Cosmos
             _connectionString = connectionString;
             _lockTtlSeconds = lockTtlSeconds;
             _compressionEnabled = compressionEnabled;
-            _consistencyLevel = ConsistencyLevel.BoundedStaleness;
+            _consistencyLevel = ConsistencyLevel.Strong;
         }
 
-        public async Task<(SessionStateValue state, bool isNew)> GetSessionAsync(string sessionId)
+        public async Task<(SessionStateValue state, bool isNew)> GetSessionAsync(string sessionId, bool extendLifespan)
         {
             var partitionKey = new PartitionKey(sessionId);
             var itemRequestOptions = new ItemRequestOptions
@@ -57,7 +58,11 @@ namespace DodoBrands.AspNet.SessionProviders.Cosmos
 
                 TraceRequestCharge(storedState, "GetSessionAsync: ReadItemAsync");
 
-                await ExtendLifespan(storedState.Resource);
+                if (extendLifespan)
+                {
+                    await ExtendLifespan(storedState.Resource);
+                }
+
                 return (storedState.Resource.Payload?.ReadSessionState(storedState.Resource.Compressed),
                     storedState.Resource.IsNew == "yes");
             }
@@ -113,12 +118,44 @@ namespace DodoBrands.AspNet.SessionProviders.Cosmos
 
         public async Task<(bool lockTaken, DateTime lockDate, object lockId)> TryAcquireLock(string sessionId)
         {
-            var now = DateTime.UtcNow;
-            var response = await _locks.Scripts.ExecuteStoredProcedureAsync<TryLockResponse>(
-                _tryLockSpName, new PartitionKey(sessionId), new dynamic[] {sessionId, now, _lockTtlSeconds});
-            TraceRequestCharge(response, $"TryAcquireLock: ExecuteStoredProcedureAsync: {_tryLockSpName}");
-            var resource = response.Resource;
-            return (resource.Locked, resource.CreatedDate, resource.ETag);
+            try
+            {
+                var optimisticTry = await AcquireLockOptimistic();
+                return optimisticTry;
+            }
+            catch (CosmosException e) when (e.StatusCode == HttpStatusCode.Conflict)
+            {
+                return await AcquireLockPessimistic();
+            }
+
+            async Task<(bool lockTaken, DateTime lockDate, object lockId)> AcquireLockOptimistic()
+            {
+                var now = DateTime.UtcNow;
+                var response = await _locks.CreateItemAsync(new SessionLockRecord
+                    {
+                        SessionId = sessionId,
+                        CreatedDate = now,
+                        TtlSeconds = _lockTtlSeconds,
+                    }, new PartitionKey(sessionId),
+                    new ItemRequestOptions
+                    {
+                        ConsistencyLevel = _consistencyLevel,
+                        EnableContentResponseOnWrite = true
+                    });
+                TraceRequestCharge(response, $"TryAcquireLock: Optimistic: CreateItemAsync: {_tryLockSpName}");
+                var resource = response.Resource;
+                return (true, now, resource.ETag);
+            }
+
+            async Task<(bool lockTaken, DateTime lockDate, object lockId)> AcquireLockPessimistic()
+            {
+                var now = DateTime.UtcNow;
+                var response = await _locks.Scripts.ExecuteStoredProcedureAsync<TryLockResponse>(
+                    _tryLockSpName, new PartitionKey(sessionId), new dynamic[] {sessionId, now, _lockTtlSeconds});
+                TraceRequestCharge(response, $"TryAcquireLock: ExecuteStoredProcedureAsync: {_tryLockSpName}");
+                var resource = response.Resource;
+                return (resource.Locked, resource.CreatedDate, resource.ETag);
+            }
         }
 
         /// <summary>
@@ -130,27 +167,35 @@ namespace DodoBrands.AspNet.SessionProviders.Cosmos
         /// however consistency of session write operations might be compromised.
         /// If you see the "Lock no longer exists" warnings, consider extending the lock timeouts or fixing the long requests. 
         /// </remarks>
-        public async Task TryReleaseLock(string sessionId, object lockId)
+        public Task TryReleaseLock(string sessionId, object lockId)
         {
-            try
+            async Task ReleaseLockFireAndForget()
             {
-                var response = await _locks.DeleteItemAsync<SessionLockRecord>(sessionId, new PartitionKey(sessionId),
-                    new ItemRequestOptions
-                    {
-                        ConsistencyLevel = _consistencyLevel,
-                        EnableContentResponseOnWrite = false,
-                        IfMatchEtag = (string) lockId,
-                    });
-                TraceRequestCharge(response, "TryReleaseLock: DeleteItemAsync");
+                try
+                {
+                    var response = await _locks.DeleteItemAsync<SessionLockRecord>(sessionId,
+                        new PartitionKey(sessionId),
+                        new ItemRequestOptions
+                        {
+                            ConsistencyLevel = _consistencyLevel,
+                            EnableContentResponseOnWrite = false,
+                            IfMatchEtag = (string) lockId,
+                        });
+                    TraceRequestCharge(response, "TryReleaseLock: DeleteItemAsync");
+                }
+                catch (CosmosException e) when (e.StatusCode == HttpStatusCode.NotFound)
+                {
+                    TraceRequestCharge(e, "TryReleaseLock: DeleteItemAsync");
+                    _trace.TraceEvent(
+                        TraceEventType.Warning,
+                        3,
+                        "Lock no longer exists. It might be an indication that request takes longer to process than the lock ttl in db. Consider fixing the long requests, or extend the lock timespan.");
+                }
             }
-            catch (CosmosException e) when (e.StatusCode == HttpStatusCode.NotFound)
-            {
-                TraceRequestCharge(e, "TryReleaseLock: DeleteItemAsync");
-                _trace.TraceEvent(
-                    TraceEventType.Warning,
-                    3,
-                    "Lock no longer exists. It might be an indication that request takes longer to process than the lock ttl in db. Consider fixing the long requests, or extend the lock timespan.");
-            }
+
+            HostingEnvironment.QueueBackgroundWorkItem(ct => ReleaseLockFireAndForget());
+
+            return Task.CompletedTask;
         }
 
         public async Task WriteContents(string sessionId, SessionStateValue stateValue,
