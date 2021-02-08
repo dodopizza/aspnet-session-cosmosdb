@@ -31,7 +31,7 @@ jobs:
           dotnet-version: ${{ matrix.dotnet.version }}
 
       - name: Run tests
-        with:
+        env:
           COSMOS_CONNECTION_STRING: ${{ secrets.COSMOS_CONNECTION_STRING }}
         run: |
           dotnet test --configuration Release --framework ${{ matrix.dotnet.framework }} ./DodoBrands.AspNet.SessionProviders.Tests/DodoBrands.AspNet.SessionProviders.Tests.csproj /p:Framework=${{ matrix.dotnet.framework }}
