@@ -6,7 +6,6 @@ namespace DodoBrands.AspNet.SessionProviders.TestWeb.Controllers
     [SessionState(SessionStateBehavior.ReadOnly)]
     public class HomeController : Controller
     {
-        
         public ActionResult Index()
         {
             return View();

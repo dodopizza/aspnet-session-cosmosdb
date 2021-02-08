@@ -2,35 +2,43 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Specialized;
 using System.Configuration;
+using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
-using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Web;
 using System.Web.Configuration;
 using System.Web.SessionState;
+using DodoBrands.CosmosDbSessionProvider;
+using DodoBrands.CosmosDbSessionProvider.Cosmos;
 using Microsoft.AspNet.SessionState;
 
-namespace DodoBrands.CosmosDbSessionProvider.Cosmos
+namespace DodoBrands.AspNet.SessionProviders.Cosmos
 {
     /// <summary>
     /// Azure CosmosDB SessionState provider for async SessionState module
     /// </summary>
     /// <inheritdoc cref="SessionStateStoreProviderAsyncBase"/>
     // ReSharper disable once UnusedType.Global
-    public sealed class CosmosDbSessionStateProviderAsync : SessionStateStoreProviderAsyncBase
+    public sealed class CosmosDbSessionStateProvider : SessionStateStoreProviderAsyncBase
     {
-        private const string SESSIONSTATE_SECTION_PATH = "system.web/sessionState";
+        private const string SessionstateSectionPath = "system.web/sessionState";
 
-        private ISessionContentsDatabase _store;
+        private ISessionDatabase _store;
 
         [SuppressMessage("ReSharper", "EmptyConstructor")]
-        public CosmosDbSessionStateProviderAsync()
+        public CosmosDbSessionStateProvider()
         {
         }
 
-        private static readonly ConcurrentDictionary<string, Lazy<ISessionContentsDatabase>> _databases =
-            new ConcurrentDictionary<string, Lazy<ISessionContentsDatabase>>();
+        /// <summary>
+        /// Databases stores one backend for each named provider.
+        /// </summary>
+        /// <remarks>
+        /// Looks like the SessionStateModule creates one provider per thread, so we are using named singletons here.
+        /// </remarks>
+        private static readonly ConcurrentDictionary<string, Lazy<ISessionDatabase>> Databases =
+            new ConcurrentDictionary<string, Lazy<ISessionDatabase>>();
 
         public override void Initialize(string name, NameValueCollection config)
         {
@@ -44,7 +52,7 @@ namespace DodoBrands.CosmosDbSessionProvider.Cosmos
             // Don't ask me why it is prefixed with "x", if you name it just lockTtlSeconds it would fail without an error message.
             var lockTtlSeconds = ConfigHelper.GetInt32(config, "xLockTtlSeconds", 30);
 
-            var ssc = (SessionStateSection) ConfigurationManager.GetSection(SESSIONSTATE_SECTION_PATH);
+            var ssc = (SessionStateSection) ConfigurationManager.GetSection(SessionstateSectionPath);
             var compressionEnabled = ssc.CompressionEnabled;
 
             var cosmosConnectionStringConfig = config["cosmosConnectionString"];
@@ -53,17 +61,28 @@ namespace DodoBrands.CosmosDbSessionProvider.Cosmos
                 throw new ConfigurationErrorsException("cosmosConnectionString is not specified.");
             }
 
-            string cosmosConnectionString = cosmosConnectionStringConfig;
+            var cosmosConnectionString = cosmosConnectionStringConfig;
             if (cosmosConnectionStringConfig.StartsWith("Env:"))
             {
                 var envVarName = cosmosConnectionString.Split(':')[1];
                 if (string.IsNullOrWhiteSpace(envVarName))
                 {
                     throw new ConfigurationErrorsException(
-                        "cosmosConnectionString environment variable is incorrectly specified. Should be specified as Env:ENV_VAR_NAME");
+                        "cosmosConnectionString environment variable is incorrectly specified. Environment variable should be specified as Env:ENV_VAR_NAME");
                 }
 
                 cosmosConnectionString = Environment.GetEnvironmentVariable(envVarName);
+
+                if (string.IsNullOrWhiteSpace(cosmosConnectionString))
+                {
+                    throw new ConfigurationErrorsException(
+                        $"{envVarName} environment variable does not contain a connection string.");
+                }
+
+                if (cosmosConnectionString.StartsWith(@"""") && cosmosConnectionString.EndsWith(@""""))
+                {
+                    cosmosConnectionString = cosmosConnectionString.Substring(1, cosmosConnectionString.Length - 2);
+                }
             }
 
             var databaseId = config["databaseId"];
@@ -72,33 +91,26 @@ namespace DodoBrands.CosmosDbSessionProvider.Cosmos
                 throw new ConfigurationErrorsException("databaseId is not specified.");
             }
 
-            if (cosmosConnectionString.StartsWith(@"""") && cosmosConnectionString.EndsWith(@""""))
-            {
-                cosmosConnectionString = cosmosConnectionString.Substring(1, cosmosConnectionString.Length - 2);
-            }
-
-            _store = _databases.GetOrAdd(name, n => new Lazy<ISessionContentsDatabase>(
-                    () => new CosmosSessionDatabase(databaseId, cosmosConnectionString, lockTtlSeconds,
-                        compressionEnabled),
+            // ReSharper disable once HeapView.CanAvoidClosure
+            _store = Databases.GetOrAdd(name, n => new Lazy<ISessionDatabase>(
+                    () =>
+                    {
+                        var db = new CosmosSessionDatabase(cosmosConnectionString, databaseId,
+                            lockTtlSeconds, compressionEnabled);
+                        db.Initialize();
+                        return db;
+                    },
                     LazyThreadSafetyMode.PublicationOnly))
                 .Value;
-
-            _store.Initialize();
-            // _store = _databases.GetOrAdd(name, n => new Lazy<ISessionContentsDatabase>(
-            //         () => new SessionDatabaseInProcessEmulation(lockTtlSeconds, compressionEnabled),
-            //         LazyThreadSafetyMode.PublicationOnly))
-            //     .Value;
         }
 
-        private Regex connectionStringRegex = new Regex(@"\""(?'cs'.*)\""");
-
-        public override async Task CreateUninitializedItemAsync(
+        public override Task CreateUninitializedItemAsync(
             HttpContextBase context,
             string id,
             int timeout,
             CancellationToken cancellationToken)
         {
-            _store.WriteContents(id, new SessionStateValue(null, null, timeout), isNew: true);
+            return _store.WriteContents(id, new SessionStateValue(null, null, timeout), true);
         }
 
         public override void Dispose()
@@ -149,6 +161,10 @@ namespace DodoBrands.CosmosDbSessionProvider.Cosmos
             return _store.Remove(id);
         }
 
+        /// <summary>
+        /// ResetItemTimeoutAsync is a no-op in this implementation, because it is extended during Get operation based on
+        /// half-expiration of the session timeout.
+        /// </summary>
         public override Task ResetItemTimeoutAsync(HttpContextBase context, string id,
             CancellationToken cancellationToken)
         {
@@ -173,11 +189,13 @@ namespace DodoBrands.CosmosDbSessionProvider.Cosmos
         {
             AssertIdValid(id);
 
+            Trace.WriteLine($"SetAndReleaseItemExclusiveAsync. items.Dirty: {item.Items.Dirty}");
+
             var state = item.ExtractDataForStorage();
 
             try
             {
-                await _store.WriteContents(id, state, isNew: false);
+                await _store.WriteContents(id, state, false);
             }
             finally
             {
@@ -196,16 +214,15 @@ namespace DodoBrands.CosmosDbSessionProvider.Cosmos
         private async Task<GetItemResult> DoGetAsync(HttpContextBase context, string id, bool exclusive)
         {
             object lockId = null;
-            bool lockTaken = false;
-            DateTime lockDate = DateTime.MinValue;
 
             if (exclusive)
             {
+                DateTime lockDate;
+                bool lockTaken;
                 (lockTaken, lockDate, lockId) = await _store.TryAcquireLock(id);
 
                 if (!lockTaken)
                 {
-                    // Lock not taken means it's already locked by other user.
                     var lockAge = DateTime.UtcNow - lockDate;
                     return new GetItemResult(null, true, lockAge, lockId, SessionStateActions.None);
                 }
@@ -215,7 +232,7 @@ namespace DodoBrands.CosmosDbSessionProvider.Cosmos
 
             if (state == null)
             {
-                if (exclusive && lockTaken)
+                if (exclusive)
                 {
                     await _store.TryReleaseLock(id, lockId);
                 }

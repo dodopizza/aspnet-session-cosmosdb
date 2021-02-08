@@ -2,16 +2,15 @@ using System;
 using System.IO;
 using System.IO.Compression;
 using System.Text;
-using System.Threading;
 using System.Web;
 using System.Web.SessionState;
-using DodoBrands.CosmosDbSessionProvider.Cosmos;
+using Microsoft.IO;
 
 namespace DodoBrands.CosmosDbSessionProvider
 {
     public static class SerializationUtil
     {
-        private static ThreadLocal<MemoryStream> _localMemoryStream;
+        private static readonly RecyclableMemoryStreamManager_ StreamManager = new RecyclableMemoryStreamManager_();
 
         public static byte[] Write(this SessionStateValue stateValue, bool compressed)
         {
@@ -29,15 +28,14 @@ namespace DodoBrands.CosmosDbSessionProvider
 
         private static byte[] BinaryWriterOperationToByteBuffer<T>(T state, Action<BinaryWriter, T> write)
         {
-            using (var stream = new MemoryStream())
+            using (var stream = StreamManager.GetStream())
             {
-                using (var writer = new BinaryWriter(stream, Encoding.Default, leaveOpen: true))
+                using (var writer = new BinaryWriter(stream, Encoding.Default, true))
                 {
                     write(writer, state);
                     writer.Flush();
                 }
 
-                stream.Position = 0;
                 var plainData = stream.ToArray();
 
                 return plainData;
@@ -47,32 +45,31 @@ namespace DodoBrands.CosmosDbSessionProvider
         private static byte[] BinaryWriterOperationToByteBufferWithCompression<T>(T state,
             Action<BinaryWriter, T> write)
         {
-            using (var stream = new MemoryStream())
+            using (var plainStream = StreamManager.GetStream())
             {
-                using (var writer = new BinaryWriter(stream, Encoding.Default, leaveOpen: true))
+                using (var writer = new BinaryWriter(plainStream, Encoding.Default, true))
                 {
                     write(writer, state);
                     writer.Flush();
                 }
 
-                stream.Position = 0;
-                var plainData = stream.ToArray();
-
-                stream.SetLength(0);
-                using (var zip = new GZipStream(stream, CompressionLevel.Optimal, leaveOpen: true))
+                using (var gzipBackendStream = StreamManager.GetStream())
                 {
-                    zip.Write(plainData, 0, plainData.Length);
-                    zip.Flush();
-                }
+                    using (var zip = new GZipStream(gzipBackendStream, CompressionLevel.Optimal, true))
+                    {
+                        plainStream.Position = 0;
+                        plainStream.CopyTo(zip, 4096);
+                        zip.Flush();
+                    }
 
-                stream.Position = 0;
-                return stream.ToArray();
+                    return gzipBackendStream.ToArray();
+                }
             }
         }
 
         private static T ByteBufferToReaderOperation<T>(byte[] source, Func<BinaryReader, T> read)
         {
-            using (var stream = new MemoryStream(source))
+            using (var stream = StreamManager.GetStream(source))
             {
                 using (var reader = new BinaryReader(stream, Encoding.Default))
                 {
@@ -83,11 +80,11 @@ namespace DodoBrands.CosmosDbSessionProvider
 
         private static T ByteBufferToReaderOperationWithCompression<T>(byte[] source, Func<BinaryReader, T> read)
         {
-            using (var stream = new MemoryStream(source))
+            using (var stream = StreamManager.GetStream(source))
             {
-                using (var zip = new GZipStream(stream, CompressionMode.Decompress, leaveOpen: true))
+                using (var zip = new GZipStream(stream, CompressionMode.Decompress, true))
                 {
-                    using (var reader = new BinaryReader(zip, Encoding.Default, leaveOpen: true))
+                    using (var reader = new BinaryReader(zip, Encoding.Default, true))
                     {
                         return read(reader);
                     }
@@ -115,9 +112,9 @@ namespace DodoBrands.CosmosDbSessionProvider
 
         private static SessionStateValue DeserializeSessionState(BinaryReader reader)
         {
-            int timeout = reader.ReadInt32();
+            var timeout = reader.ReadInt32();
             var hasSessionItems = reader.ReadBoolean();
-            bool hasStaticObjects = reader.ReadBoolean();
+            var hasStaticObjects = reader.ReadBoolean();
             return new SessionStateValue(
                 hasSessionItems ? SessionStateItemCollection.Deserialize(reader) : null,
                 hasStaticObjects ? HttpStaticObjectsCollection.Deserialize(reader) : null,

@@ -1,5 +1,4 @@
 using System.Web.SessionState;
-using DodoBrands.CosmosDbSessionProvider.Cosmos;
 
 namespace DodoBrands.CosmosDbSessionProvider
 {
@@ -20,7 +19,7 @@ namespace DodoBrands.CosmosDbSessionProvider
                 staticObjects = item.StaticObjects;
             }
 
-            var state = new SessionStateValue((SessionStateItemCollection)items, staticObjects, item.Timeout);
+            var state = new SessionStateValue((SessionStateItemCollection) items, staticObjects, item.Timeout);
             return state;
         }
     }

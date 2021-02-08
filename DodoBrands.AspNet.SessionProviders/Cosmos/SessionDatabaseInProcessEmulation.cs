@@ -14,7 +14,7 @@ namespace DodoBrands.CosmosDbSessionProvider.Cosmos
     /// <remarks>This in-memory implementation should not be used in production by no means.
     /// It is not optimized, and will suffer algorithmic complexity issues.
     /// </remarks>
-    public class SessionDatabaseInProcessEmulation : ISessionContentsDatabase
+    public class SessionDatabaseInProcessEmulation : ISessionDatabase
     {
         private readonly int _lockTtlSeconds;
         private readonly bool _compress;
@@ -27,7 +27,8 @@ namespace DodoBrands.CosmosDbSessionProvider.Cosmos
 
         private readonly object _locker = new object();
 
-        private static readonly TraceSource _trace = new TraceSource("DodoBrands.CosmosDbSessionProvider.Cosmos.SessionDatabaseInProcessEmulation");
+        private static readonly TraceSource _trace =
+            new TraceSource("DodoBrands.CosmosDbSessionProvider.Cosmos.SessionDatabaseInProcessEmulation");
 
         public SessionDatabaseInProcessEmulation(int lockTtlSeconds, bool compress)
         {
@@ -49,7 +50,7 @@ namespace DodoBrands.CosmosDbSessionProvider.Cosmos
                 }
             }, TaskCreationOptions.LongRunning);
         }
-        
+
         private void RemoveOutdated()
         {
             lock (_locker)
@@ -62,9 +63,10 @@ namespace DodoBrands.CosmosDbSessionProvider.Cosmos
                     .Select(Serialize)
                     .ToList();
                 var countAfter = _contents.Count;
-                
-                _trace.TraceEvent(TraceEventType.Verbose, 0, $"Removing old sessions. Before: {countBefore}, After: {countAfter}");
-                
+
+                _trace.TraceEvent(TraceEventType.Verbose, 0,
+                    $"Removing old sessions. Before: {countBefore}, After: {countAfter}");
+
                 _locks = _locks
                     .Select(Deserialize<SessionLockRecord>)
                     .Where(x => x.CreatedDate >= now - TimeSpan.FromSeconds(x.TtlSeconds))
@@ -72,11 +74,11 @@ namespace DodoBrands.CosmosDbSessionProvider.Cosmos
                     .ToList();
             }
         }
-    
+
         public async Task<(SessionStateValue state, bool isNew)> GetSessionAsync(string sessionId)
         {
             await Task.Yield();
-            
+
             var storedState = _contents
                 .Select(Deserialize<SessionStateRecord>)
                 .SingleOrDefault(x => x.SessionId == sessionId);
@@ -85,9 +87,9 @@ namespace DodoBrands.CosmosDbSessionProvider.Cosmos
             {
                 return (null, false);
             }
-            
+
             _ = ExtendLifespan(sessionId, storedState.CreatedDate, TimeSpan.FromSeconds(storedState.TtlSeconds));
-            
+
             return (storedState.Payload?.ReadSessionState(storedState.Compressed), storedState.IsNew == "yes");
         }
 
@@ -112,13 +114,13 @@ namespace DodoBrands.CosmosDbSessionProvider.Cosmos
 
             var secondsBeforeExpiration = (createdDate - now + ttl).TotalSeconds;
 
-            var toleratedSecondsBeforeExpiration = ttl.TotalSeconds * (1.0 - proximityFactor); 
-            
+            var toleratedSecondsBeforeExpiration = ttl.TotalSeconds * (1.0 - proximityFactor);
+
             if (secondsBeforeExpiration > toleratedSecondsBeforeExpiration)
             {
                 return;
             }
-            
+
             await Task.Yield();
             lock (_locker)
             {
@@ -130,6 +132,7 @@ namespace DodoBrands.CosmosDbSessionProvider.Cosmos
                         {
                             return old;
                         }
+
                         x.CreatedDate = now;
                         return Serialize(x);
                     })
@@ -183,7 +186,7 @@ namespace DodoBrands.CosmosDbSessionProvider.Cosmos
                     .Where(x => x.SessionId != sessionId)
                     .Select(Serialize)
                     .ToList();
-                
+
                 _contents.Add(Serialize(new SessionStateRecord
                 {
                     SessionId = sessionId,
@@ -191,7 +194,7 @@ namespace DodoBrands.CosmosDbSessionProvider.Cosmos
                     TtlSeconds = stateValue.Timeout * 60,
                     IsNew = isNew ? "yes" : null,
                     Payload = stateValue.Write(_compress),
-                    Compressed = _compress
+                    Compressed = _compress,
                 }));
             }
         }

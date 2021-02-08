@@ -3,7 +3,7 @@ using System.Threading.Tasks;
 
 namespace DodoBrands.CosmosDbSessionProvider
 {
-    public interface ISessionContentsDatabase
+    public interface ISessionDatabase
     {
         Task<(SessionStateValue state, bool isNew)> GetSessionAsync(string sessionId);
         Task Remove(string sessionId);

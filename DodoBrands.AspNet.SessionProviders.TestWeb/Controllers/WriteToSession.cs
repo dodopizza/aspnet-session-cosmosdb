@@ -10,18 +10,11 @@ namespace DodoBrands.AspNet.SessionProviders.TestWeb.Controllers
     [SessionState(SessionStateBehavior.Required)]
     public class WriteToSessionController : Controller
     {
-        private AsyncLocal<Random> _random = new AsyncLocal<Random>();
-
         // GET
         public async Task<ActionResult> Index()
         {
-            Random random = _random.Value;
-            if (random == null)
-            {
-                _random.Value = random = new Random();
-            }
-
-            await Task.Delay(random.Next(1000, 2000));
+            var random = _random.Value;
+            await Task.Delay(random.Next(500, 1500));
 
             var o = Session["Counter"];
             if (o == null)
@@ -33,16 +26,22 @@ namespace DodoBrands.AspNet.SessionProviders.TestWeb.Controllers
                 Session["Counter"] = (int) o + 1;
             }
 
-            var sb = new StringBuilder();
-
-            for (var i = 0; i < 1000; i++)
-            {
-                sb.Append(random.Next());
-            }
-
-            Session["TonOfStuffForProfiling"] = sb.ToString();
+            Session["HeavyPayload"] = GeneratePayload(random, 20_000);
 
             return View();
+        }
+
+        private readonly ThreadLocal<Random> _random = new ThreadLocal<Random>(() => new Random());
+
+        private static string GeneratePayload(Random random, int size)
+        {
+            var sb = new StringBuilder();
+            while (sb.Length < size)
+            {
+                sb.Append((char) ('0' + random.Next(10)));
+            }
+
+            return sb.ToString();
         }
     }
 }

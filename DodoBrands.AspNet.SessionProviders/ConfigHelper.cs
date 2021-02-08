@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Specialized;
 using System.Configuration;
 
@@ -14,6 +13,7 @@ namespace DodoBrands.CosmosDbSessionProvider
             {
                 throw new ConfigurationErrorsException("lockTtlSeconds parameter can not be parsed.");
             }
+
             return value;
         }
 
@@ -25,6 +25,7 @@ namespace DodoBrands.CosmosDbSessionProvider
             {
                 throw new ConfigurationErrorsException("lockTtlSeconds parameter can not be parsed.");
             }
+
             return value;
         }
     }
