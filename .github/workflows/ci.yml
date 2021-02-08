@@ -5,7 +5,7 @@ on:
     branches:
       - "*"
       - "*/*"
-      #- "!master"
+      - "!master"
   pull_request:
     branches:
       - master
@@ -24,11 +24,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@v2
-
-      # - name: Setup dotnet
-      #   uses: actions/setup-dotnet@v1
-      #   with:
-      #     dotnet-version: ${{ matrix.dotnet.version }}
 
       - name: Run tests
         env:
