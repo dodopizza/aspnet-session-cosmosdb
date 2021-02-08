@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 using Microsoft.Azure.Cosmos;
 using Microsoft.Azure.Cosmos.Scripts;
 
-namespace DodoBrands.CosmosDbSessionProvider.Cosmos
+namespace DodoBrands.AspNet.SessionProviders.Cosmos
 {
     public class CosmosSessionDatabase : ISessionDatabase
     {

@@ -5,7 +5,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using Newtonsoft.Json;
 
-namespace DodoBrands.CosmosDbSessionProvider.Cosmos
+namespace DodoBrands.AspNet.SessionProviders.Cosmos
 {
     /// <summary>
     /// SessionDatabaseInProcessEmulation is here for test purposes.

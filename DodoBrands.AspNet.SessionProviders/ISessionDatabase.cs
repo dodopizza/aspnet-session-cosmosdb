@@ -1,7 +1,7 @@
 using System;
 using System.Threading.Tasks;
 
-namespace DodoBrands.CosmosDbSessionProvider
+namespace DodoBrands.AspNet.SessionProviders
 {
     public interface ISessionDatabase
     {

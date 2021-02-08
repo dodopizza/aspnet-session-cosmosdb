@@ -1,4 +1,4 @@
-namespace DodoBrands.CosmosDbSessionProvider.Cosmos
+namespace DodoBrands.AspNet.SessionProviders.Cosmos
 {
     internal static class StringResources
     {

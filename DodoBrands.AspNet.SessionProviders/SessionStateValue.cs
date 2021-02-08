@@ -3,7 +3,7 @@ using System.Web;
 using System.Web.SessionState;
 using Newtonsoft.Json;
 
-namespace DodoBrands.CosmosDbSessionProvider
+namespace DodoBrands.AspNet.SessionProviders
 {
     public sealed class SessionStateRecord
     {

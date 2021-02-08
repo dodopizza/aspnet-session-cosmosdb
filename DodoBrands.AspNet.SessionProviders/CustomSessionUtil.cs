@@ -1,6 +1,6 @@
 using System.Web.SessionState;
 
-namespace DodoBrands.CosmosDbSessionProvider
+namespace DodoBrands.AspNet.SessionProviders
 {
     internal static class CustomSessionUtil
     {

@@ -1,7 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 
-namespace DodoBrands.CosmosDbSessionProvider
+namespace DodoBrands.AspNet.SessionProviders
 {
     internal static class HashUtil
     {

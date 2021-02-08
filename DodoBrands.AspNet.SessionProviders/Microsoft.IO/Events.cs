@@ -20,11 +20,11 @@
 // THE SOFTWARE.
 // ---------------------------------------------------------------------
 
+using System;
+using System.Diagnostics.Tracing;
+
 namespace Microsoft.IO
 {
-    using System;
-    using System.Diagnostics.Tracing;
-
     public sealed partial class RecyclableMemoryStreamManager_
     {
         /// <summary>

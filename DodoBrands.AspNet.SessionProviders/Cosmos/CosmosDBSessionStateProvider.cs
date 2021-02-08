@@ -9,8 +9,6 @@ using System.Threading.Tasks;
 using System.Web;
 using System.Web.Configuration;
 using System.Web.SessionState;
-using DodoBrands.CosmosDbSessionProvider;
-using DodoBrands.CosmosDbSessionProvider.Cosmos;
 using Microsoft.AspNet.SessionState;
 
 namespace DodoBrands.AspNet.SessionProviders.Cosmos

@@ -142,13 +142,14 @@
     <Compile Include="Cosmos\StringResources.cs" />
     <Compile Include="Cosmos\TryLockResponse.cs" />
     <Compile Include="CustomSessionUtil.cs" />
+    <Compile Include="GenericSerializationUtil.cs" />
     <Compile Include="HashUtil.cs" />
     <Compile Include="ISessionDatabase.cs" />
     <Compile Include="Microsoft.IO\Events.cs" />
     <Compile Include="Microsoft.IO\RecyclableMemoryStreamManager.cs" />
     <Compile Include="Microsoft.IO\RecyclableMemoryStream.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="SerializationUtil.cs" />
+    <Compile Include="SessionSerializationUtil.cs" />
     <Compile Include="SessionLockRecord.cs" />
     <Compile Include="SessionStateValue.cs" />
   </ItemGroup>

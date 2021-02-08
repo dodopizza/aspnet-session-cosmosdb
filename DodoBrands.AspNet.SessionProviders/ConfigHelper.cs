@@ -1,7 +1,7 @@
 using System.Collections.Specialized;
 using System.Configuration;
 
-namespace DodoBrands.CosmosDbSessionProvider
+namespace DodoBrands.AspNet.SessionProviders
 {
     public static class ConfigHelper
     {

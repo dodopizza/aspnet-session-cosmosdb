@@ -1,7 +1,7 @@
 using System;
 using Newtonsoft.Json;
 
-namespace DodoBrands.CosmosDbSessionProvider.Cosmos
+namespace DodoBrands.AspNet.SessionProviders
 {
     public sealed class SessionLockRecord
     {

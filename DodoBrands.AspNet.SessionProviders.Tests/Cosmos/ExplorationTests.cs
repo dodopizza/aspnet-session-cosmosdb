@@ -1,13 +1,11 @@
 using System;
 using System.Threading;
 using System.Threading.Tasks;
-using DodoBrands.CosmosDbSessionProvider;
-using DodoBrands.CosmosDbSessionProvider.Cosmos;
 using NUnit.Framework;
 
-namespace DodoBrands.AspNet.SessionProviders
+namespace DodoBrands.AspNet.SessionProviders.Cosmos
 {
-    public class ExplorationTests
+    public class CosmosSessionDatabaseTests
     {
         private const int LockTtlSeconds = 2;
 
