@@ -1,0 +1,35 @@
+name: Continuous Integration
+
+on:
+  push:
+    branches:
+      - "*"
+      - "*/*"
+      - "!master"
+  pull_request:
+    branches:
+      - master
+
+jobs:
+  run-tests:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        dotnet: [
+          { framework: net48, version: 4.8.x },
+        ]
+
+    name: ${{ matrix.dotnet.framework }} – run tests
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Setup dotnet
+        uses: actions/setup-dotnet@v1
+        with:
+          dotnet-version: ${{ matrix.dotnet.version }}
+
+      - name: Run tests
+        run: |
+          dotnet test --configuration Release --framework ${{ matrix.dotnet.framework }} ./DodoBrands.AspNet.SessionProviders.Tests/DodoBrands.AspNet.SessionProviders.Tests.csproj /p:Framework=${{ matrix.dotnet.framework }}

@@ -267,7 +267,7 @@ namespace DodoBrands.AspNet.SessionProviders.Cosmos
             return new StreamReader(typeof(CosmosSessionDatabase)
                                         .Assembly
                                         .GetManifestResourceStream(
-                                            "DodoBrands.CosmosDbSessionProvider.Cosmos.tryLock.js") ??
+                                            "DodoBrands.AspNet.SessionProviders.Cosmos.tryLock.js") ??
                                     throw new InvalidOperationException("Failed to load resource file."))
                 .ReadToEnd();
         }
