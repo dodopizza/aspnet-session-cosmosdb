@@ -1,3 +1,5 @@
+name: Continuous Integration
+
 on:
   workflow_dispatch:
     inputs:
