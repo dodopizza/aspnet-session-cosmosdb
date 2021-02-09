@@ -65,7 +65,16 @@ namespace DodoBrands.AspNet.SessionProviders.Cosmos
                     await ExtendLifespan(storedState.Resource);
                 }
 
-                return (storedState.Resource.Payload?.ReadSessionState(storedState.Resource.Compressed),
+                var resourcePayload = storedState.Resource.Payload;
+
+                var compressionSw = Stopwatch.StartNew();
+                var sessionStateValue = resourcePayload?.ReadSessionState(storedState.Resource.Compressed);
+                compressionSw.Stop();
+
+                _trace.TraceEvent(TraceEventType.Verbose, 4,
+                    $"{DateTime.UtcNow.ToString("o")} GetSessionAsync: Deserialize. Size: {resourcePayload?.Length}, Elapsed: {compressionSw.Elapsed.TotalSeconds.ToString()}");
+
+                return (sessionStateValue,
                     storedState.Resource.IsNew == "yes");
             }
             catch (CosmosException e) when (e.StatusCode == HttpStatusCode.NotFound)
@@ -211,13 +220,20 @@ namespace DodoBrands.AspNet.SessionProviders.Cosmos
             bool isNew)
         {
             var now = DateTime.UtcNow;
+
+            var compressionSw = Stopwatch.StartNew();
+            var payload = stateValue.Write(_compressionEnabled);
+            compressionSw.Stop();
+            _trace.TraceEvent(TraceEventType.Verbose, 4,
+                $"{now.ToString("o")} WriteContents: Serialize. Size: {payload.Length}, Elapsed: {compressionSw.Elapsed.TotalSeconds.ToString()}");
+
             var response = await _contents.UpsertItemAsync(new SessionStateRecord
                 {
                     SessionId = sessionId,
                     CreatedDate = now,
                     TtlSeconds = stateValue.Timeout * 60,
                     IsNew = isNew ? "yes" : null,
-                    Payload = stateValue.Write(_compressionEnabled),
+                    Payload = payload,
                     Compressed = _compressionEnabled,
                 }, new PartitionKey(sessionId),
                 new ItemRequestOptions
@@ -225,7 +241,7 @@ namespace DodoBrands.AspNet.SessionProviders.Cosmos
                     ConsistencyLevel = _consistencyLevel,
                     EnableContentResponseOnWrite = false,
                 });
-            TraceRequestCharge(response, $"WriteContents: UpsertItemAsync, isNew: {isNew}");
+            TraceRequestCharge(response, $"WriteContents: UpsertItemAsync. isNew: {isNew}");
         }
 
         public void Initialize()
@@ -356,13 +372,16 @@ namespace DodoBrands.AspNet.SessionProviders.Cosmos
 
         private void TraceRequestCharge<T>(Response<T> response, string what)
         {
-            _trace.TraceEvent(TraceEventType.Verbose, 0, $"{what}. Request Units spent: {response.RequestCharge}");
+            var now = DateTime.UtcNow;
+            _trace.TraceEvent(TraceEventType.Verbose, 0,
+                $"{now.ToString("o")} {what}. RU: {response.RequestCharge}. HTTP: {response.StatusCode}. Client Elapsed: {response.Diagnostics.GetClientElapsedTime().TotalSeconds.ToString()}");
         }
 
         private void TraceRequestCharge(CosmosException exception, string what)
         {
+            var now = DateTime.UtcNow;
             _trace.TraceEvent(TraceEventType.Verbose, 0,
-                $"CosmosException, {what}. Request Units spent: {exception.RequestCharge}");
+                $"{now.ToString("o")} {what}. RU: {exception.RequestCharge}. HTTP: {exception.StatusCode}. Exp: {exception.Message}. Client Elapsed: {exception.Diagnostics.GetClientElapsedTime().TotalSeconds.ToString()}");
         }
     }
 }
