@@ -68,7 +68,7 @@ namespace Microsoft.IO
     /// to a single buffer will result in an exception. Similarly, if a stream is already converted to use a single larger buffer, then
     /// it cannot grow beyond the limits of the maximum allowable array size.
     /// </remarks>
-    public sealed class RecyclableMemoryStream_ : MemoryStream
+    internal sealed class RecyclableMemoryStream_ : MemoryStream
     {
         private static readonly byte[] emptyArray = new byte[0];
 

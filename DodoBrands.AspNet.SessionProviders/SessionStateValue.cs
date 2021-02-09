@@ -5,7 +5,7 @@ using Newtonsoft.Json;
 
 namespace DodoBrands.AspNet.SessionProviders
 {
-    public sealed class SessionStateRecord
+    internal sealed class SessionStateRecord
     {
         [JsonProperty(PropertyName = "id")] public string SessionId { get; set; }
 

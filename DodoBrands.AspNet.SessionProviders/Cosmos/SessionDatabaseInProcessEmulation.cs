@@ -14,7 +14,7 @@ namespace DodoBrands.AspNet.SessionProviders.Cosmos
     /// <remarks>This in-memory implementation should not be used in production by no means.
     /// It is not optimized, and will suffer algorithmic complexity issues.
     /// </remarks>
-    public class SessionDatabaseInProcessEmulation : ISessionDatabase
+    internal class SessionDatabaseInProcessEmulation : ISessionDatabase
     {
         private readonly int _lockTtlSeconds;
         private readonly bool _compress;

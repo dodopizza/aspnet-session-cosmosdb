@@ -10,8 +10,6 @@ This implementation scores few benefits over the oficial implementation:
 * GC friendly, making use of RecyclableMemoryStreams
 * Simpler code
 
-Last but not least comes the fact that it does not have known issues (right yet).
-
 ## Motivation
 
 ASP.NET Session State for Mvc applications requires a reliable locking mechanism.
@@ -28,28 +26,30 @@ You need both module registration and provider registration sections in your con
 ## Configuration
 
 ```XML
-<connectionStrings>
-    <add name="cosmosSessionConnectionString" connectionString="Env:COSMOS_CONNECTION_STRING" />
-</connectionStrings>
-<system.webServer>
-    <modules>
-        <remove name="Session" />
-        <add name="Session"
-                type="Microsoft.AspNet.SessionState.SessionStateModuleAsync, Microsoft.AspNet.SessionState.SessionStateModule, Version=1.1.0.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35"
-                preCondition="integratedMode" />
-    </modules>
-</system.webServer>
-<system.web>
-    ...
-    <sessionState cookieless="false" regenerateExpiredSessionId="false" mode="Custom" customProvider="myProvider"
-                    timeout="20" compressionEnabled="true">
-        <providers>
-            <add name="myProvider" type="DodoBrands.AspNet.SessionProviders.Cosmos.CosmosDbSessionStateProvider"
-                    xLockTtlSeconds="10" databaseId="testdb"
-                    connectionStringName="cosmosSessionConnectionString" />
-        </providers>
-    </sessionState>
-</system.web>
+<config>
+    <connectionStrings>
+        <add name="cosmosSessionConnectionString" connectionString="Env:COSMOS_CONNECTION_STRING" />
+    </connectionStrings>
+    <system.webServer>
+        <modules>
+            <remove name="Session" />
+            <add name="Session"
+                    type="Microsoft.AspNet.SessionState.SessionStateModuleAsync, Microsoft.AspNet.SessionState.SessionStateModule, Version=1.1.0.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35"
+                    preCondition="integratedMode" />
+        </modules>
+    </system.webServer>
+    <system.web>
+        ...
+        <sessionState cookieless="false" regenerateExpiredSessionId="false" mode="Custom" customProvider="myProvider"
+                        timeout="20" compressionEnabled="true">
+            <providers>
+                <add name="myProvider" type="DodoBrands.AspNet.SessionProviders.Cosmos.CosmosDbSessionStateProvider"
+                        xLockTtlSeconds="10" databaseId="testdb"
+                        connectionStringName="cosmosSessionConnectionString" />
+            </providers>
+        </sessionState>
+    </system.web>
+</config>
 ```
 
 Notice the `Env:COSMOS_CONNECTION_STRING` construct. It allows to specify the connection string in environment variable.
@@ -57,65 +57,87 @@ Notice the `Env:COSMOS_CONNECTION_STRING` construct. It allows to specify the co
 Another possibility is to specify the connection string directly in the provider registration.
 
 ```XML
-<connectionStrings>
-    <add name="cosmosSessionConnectionString" connectionString="AccountEndpoint=https://mycosmosaccount.documents.azure.com:443;AccountKey=**********************************==" />
-</connectionStrings>
-<system.webServer>
-        <modules>
-            <remove name="Session" />
-            <add name="Session"
-                 type="Microsoft.AspNet.SessionState.SessionStateModuleAsync, Microsoft.AspNet.SessionState.SessionStateModule, Version=1.1.0.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35"
-                 preCondition="integratedMode" />
-        </modules>
-    </system.webServer>
-<system.web>
-    ...
-    <sessionState cookieless="false" regenerateExpiredSessionId="false" mode="Custom" customProvider="myProvider"
-                    timeout="20" compressionEnabled="true">
-        <providers>
-            <add name="myProvider" type="DodoBrands.AspNet.SessionProviders.Cosmos.CosmosDbSessionStateProvider"
-                    xLockTtlSeconds="10" databaseId="testdb"
-                    connectionStringName="cosmosSessionConnectionString" />
-        </providers>
-    </sessionState>
-</system.web>
+<config>
+    <connectionStrings>
+        <add name="cosmosSessionConnectionString" connectionString="AccountEndpoint=https://mycosmosaccount.documents.azure.com:443;AccountKey=**********************************==" />
+    </connectionStrings>
+    <system.webServer>
+            <modules>
+                <remove name="Session" />
+                <add name="Session"
+                     type="Microsoft.AspNet.SessionState.SessionStateModuleAsync, Microsoft.AspNet.SessionState.SessionStateModule, Version=1.1.0.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35"
+                     preCondition="integratedMode" />
+            </modules>
+        </system.webServer>
+    <system.web>
+        <sessionState cookieless="false" regenerateExpiredSessionId="false" mode="Custom" customProvider="myProvider"
+                        timeout="20" compressionEnabled="true">
+            <providers>
+                <add name="myProvider" type="DodoBrands.AspNet.SessionProviders.Cosmos.CosmosDbSessionStateProvider"
+                        xLockTtlSeconds="10" databaseId="testdb"
+                        connectionStringName="cosmosSessionConnectionString" />
+            </providers>
+        </sessionState>
+    </system.web>
+</config>
 ```
 
 In future versions, a possibility to specify a connection string separately in the connectionStrings section might be added.
 
 ### Parameters
 
-`databaseId` specifies the name of the database in CosmosDB which you are going to be using got sessions. The provider will create two containers in this database on first execution: `locks` and `contents`. You should not use the database for any other purpose.
+`databaseId`
+-
+specifies the name of the database in CosmosDB which you are going to be using got sessions. The provider will create two containers in this database on first execution: `locks` and `contents`. You should not use the database for any other purpose.
 
-`xLockTtlSeconds` - specifies the TTL for the locks in seconds. Basically it is a tradeoff between consistency and availability. The time period in seconds specified by this parameter should be long enough to encompass any possible request duration that requires session write consistency.
+`xLockTtlSeconds`
+-
+Specifies the TTL for the locks in seconds. Basically it is a tradeoff between consistency and availability. The time period in seconds specified by this parameter should be long enough to encompass any possible request duration that requires session write consistency.
 
 > **WARNING!**
 If this TTL values is too short, longer requests might experience inconsistency in session writes. The risk here is that one request might overwrite session contents out of turn and user session data might be lost this way.
 On the other hand, if TTL is too long, session might be stuck in locked state after an application crash, so choose long `xLockTtlSeconds` parameter only if your application is stable enough.
 
-`timeout` specifies sliding expiration of session in minutes.
+`timeout`
+-
+Specifies sliding expiration of session in minutes.
 
-`compressionEnabled` if set to true, session contents will be GZip-compressed, saving request units on storage. Use wisely, as it unilizes more CPU. This parameter can be changed between application restarts, because this flag is stored with every session content item in the database, so the engine knows to decode the contents if it was compressed before and.
+`compressionEnabled`
+-
+if set to true, session contents will be GZip-compressed, saving request units on storage. Use wisely, as it unilizes more CPU. This parameter can be changed between application restarts, because this flag is stored with every session content item in the database, so the engine knows to decode the contents if it was compressed before and.
+
+`consistencyLevel`
+-
+specifies Azure Cosmos DB consistency level used for operations.
+One of the levels specified here: https://docs.microsoft.com/en-us/dotnet/api/microsoft.azure.cosmos.consistencylevel?view=azure-dotnet
+`Strong` (default) should be used in multi-region setup.
+`BoundedStaleness` can be used in a single-region setup, it provides the same guarantees in single region.
+`Session` can only be used in a test environment when using Cosmos DB Emulator.
+> **WARNING!** Don't copy-paste this value from sample application config file, it is not suitable for production. 
+
+See also: https://docs.microsoft.com/en-us/azure/cosmos-db/consistency-levels
 
 `DodoBrands.CosmosDbSessionProvider.Cosmos.CosmosDbSessionStateProvider` name of the trace source which can be used for tracing.
 Here is an example of tacing configuration which writes to the console. This configuration is useful for debugging:
 
 ```XML
-<system.diagnostics>
-    <trace autoflush="true"></trace>
-    <sources>
-        <source name="DodoBrands.CosmosDbSessionProvider.Cosmos.CosmosDbSessionStateProvider"
-                switchName="sourceSwitch" switchType="System.Diagnostics.SourceSwitch">
-            <listeners>
-                <add name="console" type="System.Diagnostics.ConsoleTraceListener">
-                </add>
-            </listeners>
-        </source>
-    </sources>
-    <switches>
-        <add name="sourceSwitch" value="All" />
-    </switches>
-</system.diagnostics>
+<config>
+    <system.diagnostics>
+        <trace autoflush="true" />
+        <sources>
+            <source name="DodoBrands.CosmosDbSessionProvider.Cosmos.CosmosDbSessionStateProvider"
+                    switchName="sourceSwitch" switchType="System.Diagnostics.SourceSwitch">
+                <listeners>
+                    <add name="console" type="System.Diagnostics.ConsoleTraceListener">
+                    </add>
+                </listeners>
+            </source>
+        </sources>
+        <switches>
+            <add name="sourceSwitch" value="All" />
+        </switches>
+    </system.diagnostics>
+</config>
 ```
 
 ## Design

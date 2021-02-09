@@ -3,7 +3,7 @@ using System.Threading.Tasks;
 
 namespace DodoBrands.AspNet.SessionProviders
 {
-    public interface ISessionDatabase
+    internal interface ISessionDatabase
     {
         Task<(SessionStateValue state, bool isNew)> GetSessionAsync(string sessionId, bool extendLifespan);
         Task Remove(string sessionId);

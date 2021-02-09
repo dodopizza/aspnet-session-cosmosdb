@@ -4,7 +4,7 @@ using System.Web.SessionState;
 
 namespace DodoBrands.AspNet.SessionProviders
 {
-    public static class SessionSerializationUtil
+    internal static class SessionSerializationUtil
     {
         public static byte[] Write(this SessionStateValue stateValue, bool compressed)
         {

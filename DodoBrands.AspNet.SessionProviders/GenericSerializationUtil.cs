@@ -6,7 +6,7 @@ using Microsoft.IO;
 
 namespace DodoBrands.AspNet.SessionProviders
 {
-    public static class GenericSerializationUtil
+    internal static class GenericSerializationUtil
     {
         private static readonly RecyclableMemoryStreamManager_ StreamManager = new RecyclableMemoryStreamManager_();
 

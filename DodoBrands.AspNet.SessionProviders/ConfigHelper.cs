@@ -1,9 +1,10 @@
+using System;
 using System.Collections.Specialized;
 using System.Configuration;
 
 namespace DodoBrands.AspNet.SessionProviders
 {
-    public static class ConfigHelper
+    internal static class ConfigHelper
     {
         public static int GetInt32(NameValueCollection config, string key, int defaultValue)
         {
@@ -27,6 +28,26 @@ namespace DodoBrands.AspNet.SessionProviders
             }
 
             return value;
+        }
+
+        public static T GetEnum<T>(NameValueCollection nameValueCollection, string propertyName, T defaultValue) where T:struct
+        {
+            if (!typeof(T).IsEnum)
+            {
+                throw new ArgumentException($"Expected a enum, got: {typeof(T)}");
+            }
+
+            var value = nameValueCollection[propertyName];
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return defaultValue;
+            }
+            if (!Enum.TryParse(value, out T result))
+            {
+                throw new InvalidOperationException($"Can not parse {propertyName} as {typeof(T)}");
+            }
+
+            return result;
         }
     }
 }

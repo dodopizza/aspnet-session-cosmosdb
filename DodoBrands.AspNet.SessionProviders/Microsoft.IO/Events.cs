@@ -25,7 +25,7 @@ using System.Diagnostics.Tracing;
 
 namespace Microsoft.IO
 {
-    public sealed partial class RecyclableMemoryStreamManager_
+    internal sealed partial class RecyclableMemoryStreamManager_
     {
         /// <summary>
         /// ETW events for RecyclableMemoryStream

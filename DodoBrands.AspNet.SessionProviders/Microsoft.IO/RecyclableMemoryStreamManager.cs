@@ -39,7 +39,7 @@ namespace Microsoft.IO
     /// multiples/exponentials of LargeBufferMultiple (1 MB by default). They are split by size to avoid overly-wasteful buffer
     /// usage. There should be far fewer 8 MB buffers than 1 MB buffers, for example.
     /// </remarks>
-    public partial class RecyclableMemoryStreamManager_
+    internal partial class RecyclableMemoryStreamManager_
     {
         /// <summary>
         /// Maximum length of a single array.

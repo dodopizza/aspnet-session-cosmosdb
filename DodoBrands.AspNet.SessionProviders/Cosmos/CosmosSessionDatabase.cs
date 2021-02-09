@@ -10,10 +10,12 @@ using Microsoft.Azure.Cosmos.Scripts;
 
 namespace DodoBrands.AspNet.SessionProviders.Cosmos
 {
-    public class CosmosSessionDatabase : ISessionDatabase
+    internal class CosmosSessionDatabase : ISessionDatabase
     {
         private static readonly TraceSource _trace =
             new TraceSource("DodoBrands.CosmosDbSessionProvider.Cosmos.CosmosDbSessionStateProvider");
+
+        internal static TraceSource TraceSource => _trace;
 
         private readonly bool _compressionEnabled;
         private readonly string _connectionString;
@@ -35,13 +37,13 @@ namespace DodoBrands.AspNet.SessionProviders.Cosmos
         private readonly ConsistencyLevel _consistencyLevel;
 
         public CosmosSessionDatabase(string connectionString, string databaseId, int lockTtlSeconds,
-            bool compressionEnabled)
+            bool compressionEnabled, ConsistencyLevel consistencyLevel)
         {
             _databaseId = databaseId;
             _connectionString = connectionString;
             _lockTtlSeconds = lockTtlSeconds;
             _compressionEnabled = compressionEnabled;
-            _consistencyLevel = ConsistencyLevel.Strong;
+            _consistencyLevel = consistencyLevel;
         }
 
         public async Task<(SessionStateValue state, bool isNew)> GetSessionAsync(string sessionId, bool extendLifespan)
@@ -193,7 +195,14 @@ namespace DodoBrands.AspNet.SessionProviders.Cosmos
                 }
             }
 
-            HostingEnvironment.QueueBackgroundWorkItem(ct => ReleaseLockFireAndForget());
+            if (HostingEnvironment.IsHosted)
+            {
+                HostingEnvironment.QueueBackgroundWorkItem(ct => ReleaseLockFireAndForget());
+            }
+            else
+            {
+                _ = ReleaseLockFireAndForget();
+            }
 
             return Task.CompletedTask;
         }

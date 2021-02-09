@@ -3,7 +3,7 @@ using Newtonsoft.Json;
 
 namespace DodoBrands.AspNet.SessionProviders
 {
-    public sealed class SessionLockRecord
+    internal sealed class SessionLockRecord
     {
         [JsonProperty(PropertyName = "id")] public string SessionId { get; set; }
 

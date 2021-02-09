@@ -3,7 +3,7 @@ using Newtonsoft.Json;
 
 namespace DodoBrands.AspNet.SessionProviders.Cosmos
 {
-    public class TryLockResponse
+    internal class TryLockResponse
     {
         [JsonProperty("locked")] public bool Locked { get; set; }
 

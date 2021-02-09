@@ -10,6 +10,7 @@ using System.Web;
 using System.Web.Configuration;
 using System.Web.SessionState;
 using Microsoft.AspNet.SessionState;
+using Microsoft.Azure.Cosmos;
 
 namespace DodoBrands.AspNet.SessionProviders.Cosmos
 {
@@ -33,7 +34,7 @@ namespace DodoBrands.AspNet.SessionProviders.Cosmos
         /// Databases stores one backend for each named provider.
         /// </summary>
         /// <remarks>
-        /// Looks like the SessionStateModule creates one provider per thread, so we are using named singletons here.
+        /// SessionStateModule creates multiple provider instances, so we are using named singletons here.
         /// </remarks>
         private static readonly ConcurrentDictionary<string, Lazy<ISessionDatabase>> Databases =
             new ConcurrentDictionary<string, Lazy<ISessionDatabase>>();
@@ -92,6 +93,8 @@ namespace DodoBrands.AspNet.SessionProviders.Cosmos
                 }
             }
 
+            var consistencyLevel = ConfigHelper.GetEnum(config, "consistencyLevel", ConsistencyLevel.Strong);
+
             var databaseId = config["databaseId"];
             if (string.IsNullOrWhiteSpace(databaseId))
             {
@@ -103,7 +106,7 @@ namespace DodoBrands.AspNet.SessionProviders.Cosmos
                     () =>
                     {
                         var db = new CosmosSessionDatabase(cosmosConnectionString, databaseId,
-                            lockTtlSeconds, compressionEnabled);
+                            lockTtlSeconds, compressionEnabled, consistencyLevel);
                         db.Initialize();
                         return db;
                     },
