@@ -38,6 +38,8 @@ jobs:
           dotnet test --configuration Release --framework ${{ matrix.dotnet.framework }} ./Dodo.AspNet.SessionProviders.CosmosDb.Tests/Dodo.AspNet.SessionProviders.CosmosDb.Tests.csproj /p:Framework=${{ matrix.dotnet.framework }}
 
   publish-package:
+    needs: [run-tests]
+
     runs-on: windows-latest
 
     strategy:
@@ -53,5 +55,5 @@ jobs:
 
       - name: Build and publish library to NuGet
         run: |
-          dotnet pack --no-restore --configuration Release --output out/ ./Dodo.AspNet.SessionProviders.CosmosDb/Dodo.AspNet.SessionProviders.CosmosDb.csproj /p:Version=${{ github.event.inputs.version_prefix }}${{ github.run_number }}${{ github.event.inputs.version_suffix }}
+          dotnet pack --configuration Release --output out/ ./Dodo.AspNet.SessionProviders.CosmosDb/Dodo.AspNet.SessionProviders.CosmosDb.csproj /p:Version=${{ github.event.inputs.version_prefix }}${{ github.run_number }}${{ github.event.inputs.version_suffix }}
           dotnet nuget push out/*.nupkg --source https://api.nuget.org/v3/index.json --api-key ${{ secrets.NUGET_API_KEY }}
