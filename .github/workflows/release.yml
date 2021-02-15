@@ -20,7 +20,7 @@ jobs:
           { framework: net48, version: 5.0.102 },
         ]
 
-    name: ${{ matrix.dotnet.framework }} – run tests and release
+    name: ${{ matrix.dotnet.framework }} – run tests
 
     steps:
       - uses: actions/checkout@v2
