@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net48</TargetFramework>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <Authors>Dodo Brands</Authors>
+    <PackageProjectUrl>https://github.com/dodopizza/aspnet-session-cosmosdb</PackageProjectUrl>
+    
+    
+  </PropertyGroup>
+
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
+      <_Parameter1>DodoBrands.AspNet.SessionProviders.CosmosDb.Tests</_Parameter1>
+    </AssemblyAttribute>
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNet.SessionState.SessionStateModule" Version="1.1.0" />
+    <PackageReference Include="Microsoft.Azure.Cosmos" Version="3.16.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="System.Web" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Remove="Cosmos\tryLock.js" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="tryLock.js" />
+  </ItemGroup>
+
+</Project>

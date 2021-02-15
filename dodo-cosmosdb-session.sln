@@ -1,10 +1,10 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DodoBrands.AspNet.SessionProviders.TestWeb", "DodoBrands.AspNet.SessionProviders.TestWeb\DodoBrands.AspNet.SessionProviders.TestWeb.csproj", "{F0C4D859-AF96-47E9-BCBA-FFC537B387D2}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DodoBrands.AspNet.SessionProviders.CosmosDb.TestWeb", "DodoBrands.AspNet.SessionProviders.CosmosDb.TestWeb\DodoBrands.AspNet.SessionProviders.CosmosDb.TestWeb.csproj", "{F0C4D859-AF96-47E9-BCBA-FFC537B387D2}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DodoBrands.AspNet.SessionProviders.Tests", "DodoBrands.AspNet.SessionProviders.Tests\DodoBrands.AspNet.SessionProviders.Tests.csproj", "{4CD5C703-5836-447F-ACFB-7314E40B4D11}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DodoBrands.AspNet.SessionProviders.CosmosDb.Tests", "DodoBrands.AspNet.SessionProviders.CosmosDb.Tests\DodoBrands.AspNet.SessionProviders.CosmosDb.Tests.csproj", "{4CD5C703-5836-447F-ACFB-7314E40B4D11}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DodoBrands.AspNet.SessionProviders", "DodoBrands.AspNet.SessionProviders\DodoBrands.AspNet.SessionProviders.csproj", "{3B4C7E84-B069-4ACE-A671-B08F539A54C7}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DodoBrands.AspNet.SessionProviders.CosmosDb", "DodoBrands.AspNet.SessionProviders.CosmosDb\DodoBrands.AspNet.SessionProviders.CosmosDb.csproj", "{3B4C7E84-B069-4ACE-A671-B08F539A54C7}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net48</TargetFramework>
+
+        <IsPackable>false</IsPackable>
+
+        <RootNamespace>DodoBrands.AspNet.SessionProviders.CosmosDb</RootNamespace>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Microsoft.Azure.Cosmos" Version="3.16.0" />
+        <PackageReference Include="Newtonsoft.Json" Version="11.0.1" />
+        <PackageReference Include="NUnit" Version="3.12.0" />
+        <PackageReference Include="NUnit3TestAdapter" Version="3.16.1" />
+        <PackageReference Include="Microsoft.NET.Test.Sdk" Version="16.5.0" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <Reference Include="System.Web" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <ProjectReference Include="..\DodoBrands.AspNet.SessionProviders.CosmosDb\DodoBrands.AspNet.SessionProviders.CosmosDb.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <Folder Include="Cosmos" />
+    </ItemGroup>
+
+</Project>
