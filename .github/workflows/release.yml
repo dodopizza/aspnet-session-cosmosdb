@@ -38,8 +38,8 @@ jobs:
           dotnet test --configuration Release --framework ${{ matrix.dotnet.framework }} ./Dodo.AspNet.SessionProviders.CosmosDb.Tests/Dodo.AspNet.SessionProviders.CosmosDb.Tests.csproj /p:Framework=${{ matrix.dotnet.framework }}
 
   publish-package:
-    needs: [run-tests]
-
+#    needs: [run-tests]
+    
     runs-on: windows-latest
 
     strategy:
