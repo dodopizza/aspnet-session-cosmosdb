@@ -1,0 +1,1 @@
+﻿<%@ Application Codebehind="Global.asax.cs" Inherits="Dodo.AspNet.SessionProviders.CosmosDb.TestWeb.MvcApplication" Language="C#" %>
