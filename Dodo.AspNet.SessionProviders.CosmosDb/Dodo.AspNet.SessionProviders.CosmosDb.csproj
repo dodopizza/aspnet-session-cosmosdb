@@ -5,6 +5,7 @@
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <Authors>Dodo Brands</Authors>
     <PackageProjectUrl>https://github.com/dodopizza/aspnet-session-cosmosdb</PackageProjectUrl>
+    <PackageLicenseUrl>https://github.com/dodopizza/aspnet-session-cosmosdb/blob/master/LICENSE</PackageLicenseUrl>
     <AssemblyName>Dodo.AspNet.SessionProviders.CosmosDb</AssemblyName>
     <RootNamespace>Dodo.AspNet.SessionProviders.CosmosDb</RootNamespace>
     
