@@ -1,4 +1,4 @@
-name: Release NuGet package (debug workflow)
+name: Release NuGet package
 
 on:
   workflow_dispatch:
@@ -6,7 +6,7 @@ on:
       version_prefix:
         description: 'Version prefix such as `1.2` in `1.2.3`'
         required: true
-        default: '0.0.1'
+        default: '0.1'
       prerelease_version_suffix:
         description: 'Version suffix such as `-alpha1` in `1.2.3-alpha1`'
 
@@ -37,8 +37,21 @@ jobs:
         run: |
           dotnet test --configuration Release --framework ${{ matrix.dotnet.framework }} ./Dodo.AspNet.SessionProviders.CosmosDb.Tests/Dodo.AspNet.SessionProviders.CosmosDb.Tests.csproj /p:Framework=${{ matrix.dotnet.framework }}
 
+  publish-package:
+    runs-on: windows-latest
+
+    strategy:
+      matrix:
+        dotnet: [
+          { framework: net48, version: 5.0.102 },
+        ]
+
+    name: ${{ matrix.dotnet.framework }} – publish package
+
+    steps:
+      - uses: actions/checkout@v2
+
       - name: Build and publish library to NuGet
         run: |
           dotnet pack --no-restore --configuration Release --output out/ ./Dodo.AspNet.SessionProviders.CosmosDb/Dodo.AspNet.SessionProviders.CosmosDb.csproj /p:Version=${{ github.event.inputs.version_prefix }}${{ github.run_number }}${{ github.event.inputs.version_suffix }}
           dotnet nuget push out/*.nupkg --source https://api.nuget.org/v3/index.json --api-key ${{ secrets.NUGET_API_KEY }}
-
