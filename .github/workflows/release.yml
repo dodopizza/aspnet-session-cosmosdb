@@ -39,6 +39,6 @@ jobs:
 
       - name: Build and publish library to NuGet
         run: |
-          dotnet pack --no-restore --configuration Release --output out/ ./Dodo.AspNet.SessionProviders.CosmosDb/Dodo.AspNet.SessionProviders.CosmosDb.csproj /p:Version=${{ github.event.inputs.version_prefix }}$GITHUB_RUN_NUMBER${{ github.event.inputs.version_suffix }}
+          dotnet pack --no-restore --configuration Release --output out/ ./Dodo.AspNet.SessionProviders.CosmosDb/Dodo.AspNet.SessionProviders.CosmosDb.csproj /p:Version=${{ github.event.inputs.version_prefix }}$GITHUB_RUN_NUMBER{{ github.event.inputs.version_suffix }}
           dotnet nuget push out/*.nupkg --source https://api.nuget.org/v3/index.json --api-key ${{ secrets.NUGET_API_KEY }}
 
