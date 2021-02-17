@@ -25,36 +25,7 @@ You need both module registration and provider registration sections in your con
 
 ## Configuration
 
-```XML
-<config>
-    <connectionStrings>
-        <add name="cosmosSessionConnectionString" connectionString="Env:COSMOS_CONNECTION_STRING" />
-    </connectionStrings>
-    <system.webServer>
-        <modules>
-            <remove name="Session" />
-            <add name="Session"
-                    type="Microsoft.AspNet.SessionState.SessionStateModuleAsync, Microsoft.AspNet.SessionState.SessionStateModule, Version=1.1.0.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35"
-                    preCondition="integratedMode" />
-        </modules>
-    </system.webServer>
-    <system.web>
-        ...
-        <sessionState cookieless="false" regenerateExpiredSessionId="false" mode="Custom" customProvider="myProvider"
-                        timeout="20" compressionEnabled="true">
-            <providers>
-                <add name="myProvider" type="DodoBrands.AspNet.SessionProviders.Cosmos.CosmosDbSessionStateProvider"
-                        xLockTtlSeconds="10" databaseId="testdb"
-                        connectionStringName="cosmosSessionConnectionString" />
-            </providers>
-        </sessionState>
-    </system.web>
-</config>
-```
-
-Notice the `Env:COSMOS_CONNECTION_STRING` construct. It allows to specify the connection string in environment variable.
-
-Another possibility is to specify the connection string directly in the provider registration.
+Following configuration snippet specifies connection string in `connectionStrings` section.
 
 ```XML
 <config>
@@ -70,41 +41,55 @@ Another possibility is to specify the connection string directly in the provider
             </modules>
         </system.webServer>
     <system.web>
-        <sessionState cookieless="false" regenerateExpiredSessionId="false" mode="Custom" customProvider="myProvider"
-                        timeout="20" compressionEnabled="true">
+        <sessionState
+                cookieless="false"
+                regenerateExpiredSessionId="false"
+                mode="Custom"
+                customProvider="myProvider"
+                timeout="27">
             <providers>
-                <add name="myProvider" type="DodoBrands.AspNet.SessionProviders.Cosmos.CosmosDbSessionStateProvider"
-                        xLockTtlSeconds="10" databaseId="testdb"
-                        connectionStringName="cosmosSessionConnectionString" />
+                <add
+                        name="myProvider"
+                        type="DodoBrands.AspNet.SessionProviders.Cosmos.CosmosDbSessionStateProvider"
+                        xLockTtlSeconds="10"
+                        databaseId="testdb"
+                        compressionEnabled="true"
+                        connectionString="AccountEndpoint=https://localhost:8081/;AccountKey=C2y6yDjf5/R+ob0N8A7Cgv30VRDJIWEHLM+4QDU5DE2nQ9nDuVTqobD4b8mGGyPMbIZnqyMsEcaGQy67XIw/Jw==" />
             </providers>
         </sessionState>
     </system.web>
 </config>
 ```
 
-In future versions, a possibility to specify a connection string separately in the connectionStrings section might be added.
-
 ### Parameters
+
+`customProvider`
+-
+The value specified in the `sessionState` element must not be empty and must match that of the `name` property in the `add` element for the provider.
 
 `databaseId`
 -
-specifies the name of the database in CosmosDB which you are going to be using got sessions. The provider will create two containers in this database on first execution: `locks` and `contents`. You should not use the database for any other purpose.
+Specifies the name of the database in CosmosDB which you are going to be using got sessions. The provider will create two containers in this database on first execution: `locks` and `contents`. You should not use the database for any other purpose.
 
 `xLockTtlSeconds`
 -
-Specifies the TTL for the locks in seconds. Basically it is a tradeoff between consistency and availability. The time period in seconds specified by this parameter should be long enough to encompass any possible request duration that requires session write consistency.
+Specifies the TTL for the locks in seconds. Basically it is a tradeoff between consistency and error resilience. The time period in seconds specified by this parameter should be long enough to encompass any possible request duration that requires session write consistency.
 
-> **WARNING!**
-If this TTL values is too short, longer requests might experience inconsistency in session writes. The risk here is that one request might overwrite session contents out of turn and user session data might be lost this way.
+> If this TTL values is too short, longer requests might experience inconsistency in session writes. The risk here is that one request might overwrite session contents out of turn and user session data might be lost this way.
 On the other hand, if TTL is too long, session might be stuck in locked state after an application crash, so choose long `xLockTtlSeconds` parameter only if your application is stable enough.
 
 `timeout`
 -
-Specifies sliding expiration of session in minutes.
+Specifies TTL of session in minutes.
+Sliding expiration will not be extended until 25% of the TTL has been passed by the time of the request.
+This is done to reduce the number of expensive write operations in the database.
+So, if you need your session to last at least some value, multiply it by 4/3. For example, if you need your session to last *at least* 20 minutes, you need to specify 20 * 4 / 3 = 27 minutes. This way, session is guaranteed to last for 20 minutes, but it can also live as long as 27 minutes after the last request, depending on the actual request timings.
+
+> Effective value of the sliding expiration will be anywhere between 75% and 100% of the specified timeout value.
 
 `compressionEnabled`
 -
-if set to true, session contents will be GZip-compressed, saving request units on storage. Use wisely, as it unilizes more CPU. This parameter can be changed between application restarts, because this flag is stored with every session content item in the database, so the engine knows to decode the contents if it was compressed before and.
+Default is `true`. When set to true, session contents will be GZip-compressed, saving request units on storage. Use wisely, as it unilizes more CPU. This parameter can be changed between application restarts, because this flag is stored with every session content item in the database, so the engine knows to decode the contents if it was compressed before and.
 
 `consistencyLevel`
 -
@@ -173,17 +158,17 @@ Browser request 2 (intention to lock and write):
 * try to create lock (success)
 * read content (1)
 * store content (2)
+* time t3
 * delete lock
+
 
 Browser request 3, 4, 5 (intention to just read with no locking):
 * read content (0)
 * ...
-* time t1
-* ...
+* time t2
 * read content (1)
 * ...
-* time t2
-* ...
+* time t3
 * read content (2)
 
 ### Implementation Details

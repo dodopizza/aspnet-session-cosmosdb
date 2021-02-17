@@ -21,8 +21,6 @@ namespace Dodo.AspNet.SessionProviders.CosmosDb
     // ReSharper disable once UnusedType.Global
     public sealed class CosmosDbSessionStateProvider : SessionStateStoreProviderAsyncBase
     {
-        private const string SessionstateSectionPath = "system.web/sessionState";
-
         private ISessionDatabase _store;
 
         [SuppressMessage("ReSharper", "EmptyConstructor")]
@@ -49,63 +47,21 @@ namespace Dodo.AspNet.SessionProviders.CosmosDb
             base.Initialize(name, config);
 
             // Don't ask me why it is prefixed with "x", if you name it just lockTtlSeconds it would fail without an error message.
-            var lockTtlSeconds = ConfigHelper.GetInt32(config, "xLockTtlSeconds", 30);
+            var lockTtlSeconds = config.GetInt32("xLockTtlSeconds", 30);
 
-            var ssc = (SessionStateSection) ConfigurationManager.GetSection(SessionstateSectionPath);
-            var compressionEnabled = ssc.CompressionEnabled;
+            var consistencyLevel = config.GetEnum("consistencyLevel", ConsistencyLevel.Strong);
 
-            var connectionStringName = config["connectionStringName"];
-            if (string.IsNullOrWhiteSpace(connectionStringName))
-            {
-                throw new ConfigurationErrorsException("connectionStringName is not specified.");
-            }
+            var databaseId = config.GetRequiredString("databaseId");
 
-            var connectionStrings = ConfigurationManager.ConnectionStrings;
+            var compressionEnabled = config.GetBoolean("compressionEnabled", true);
 
-            var cosmosConnectionStringConfig = connectionStrings[connectionStringName].ConnectionString;
-            if (string.IsNullOrWhiteSpace(cosmosConnectionStringConfig))
-            {
-                throw new ConfigurationErrorsException(
-                    $"connectionString attribute is not specified for connectionString named {connectionStringName}");
-            }
-
-            var cosmosConnectionString = cosmosConnectionStringConfig;
-            if (cosmosConnectionStringConfig.StartsWith("Env:"))
-            {
-                var envVarName = cosmosConnectionString.Split(':')[1];
-                if (string.IsNullOrWhiteSpace(envVarName))
-                {
-                    throw new ConfigurationErrorsException(
-                        "Environment variable is incorrectly specified in the connection string. Environment variable should be specified as Env:ENV_VAR_NAME");
-                }
-
-                cosmosConnectionString = Environment.GetEnvironmentVariable(envVarName);
-
-                if (string.IsNullOrWhiteSpace(cosmosConnectionString))
-                {
-                    throw new ConfigurationErrorsException(
-                        $"{envVarName} environment variable does not contain a connection string.");
-                }
-
-                if (cosmosConnectionString.StartsWith(@"""") && cosmosConnectionString.EndsWith(@""""))
-                {
-                    cosmosConnectionString = cosmosConnectionString.Substring(1, cosmosConnectionString.Length - 2);
-                }
-            }
-
-            var consistencyLevel = ConfigHelper.GetEnum(config, "consistencyLevel", ConsistencyLevel.Strong);
-
-            var databaseId = config["databaseId"];
-            if (string.IsNullOrWhiteSpace(databaseId))
-            {
-                throw new ConfigurationErrorsException("databaseId is not specified.");
-            }
+            var connectionString = config.GetRequiredString("connectionString");
 
             // ReSharper disable once HeapView.CanAvoidClosure
             _store = Databases.GetOrAdd(name, n => new Lazy<ISessionDatabase>(
                     () =>
                     {
-                        var db = new CosmosSessionDatabase(cosmosConnectionString, databaseId,
+                        var db = new CosmosSessionDatabase(connectionString, databaseId,
                             lockTtlSeconds, compressionEnabled, consistencyLevel);
                         db.Initialize();
                         return db;
