@@ -8,6 +8,11 @@
 <body>
 <div>
     @Html.ActionLink("Home", "Index", "Home")
+    <div>
+        <p>@Html.ActionLink("Write to session", "Index", "WriteToSession")</p>
+        <p>@Html.ActionLink("Readonly session", "Index", "ReadOnlySession")</p>
+        <p>@Html.ActionLink("Lock without write", "Index", "LockWithoutWrite")</p>
+    </div>
 </div>
 <div>
     @RenderBody()

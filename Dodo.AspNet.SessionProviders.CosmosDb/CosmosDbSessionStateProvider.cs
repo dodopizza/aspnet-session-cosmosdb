@@ -1,13 +1,11 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Specialized;
-using System.Configuration;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Web;
-using System.Web.Configuration;
 using System.Web.SessionState;
 using Microsoft.AspNet.SessionState;
 using Microsoft.Azure.Cosmos;
@@ -76,16 +74,16 @@ namespace Dodo.AspNet.SessionProviders.CosmosDb
             int timeout,
             CancellationToken cancellationToken)
         {
-            return _store.WriteContents(id, new SessionStateValue(null, null, timeout), true);
+            return _store.WriteContents(context, id, new SessionStateValue(null, null, timeout), true);
         }
 
         public override void Dispose()
         {
         }
 
-        public override Task EndRequestAsync(HttpContextBase context)
+        public override async Task EndRequestAsync(HttpContextBase context)
         {
-            return Task.CompletedTask;
+            await _store.ExtendLifetime(context);
         }
 
         public override Task<GetItemResult> GetItemAsync(HttpContextBase context, string id,
@@ -124,7 +122,7 @@ namespace Dodo.AspNet.SessionProviders.CosmosDb
         {
             AssertIdValid(id);
 
-            return _store.Remove(id);
+            return _store.Remove(context, id);
         }
 
         /// <summary>
@@ -161,7 +159,7 @@ namespace Dodo.AspNet.SessionProviders.CosmosDb
 
             try
             {
-                await _store.WriteContents(id, state, false);
+                await _store.WriteContents(context, id, state, false);
             }
             finally
             {
@@ -194,8 +192,7 @@ namespace Dodo.AspNet.SessionProviders.CosmosDb
                 }
             }
 
-            var extendLifespan = !exclusive;
-            var (state, isNew) = await _store.GetSessionAsync(id, extendLifespan);
+            var (state, isNew) = await _store.GetSessionAsync(context, id);
 
             if (state == null)
             {

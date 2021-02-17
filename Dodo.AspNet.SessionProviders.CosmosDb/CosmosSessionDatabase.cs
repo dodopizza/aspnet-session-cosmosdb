@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Net;
 using System.Threading.Tasks;
+using System.Web;
 using System.Web.Hosting;
 using Microsoft.Azure.Cosmos;
 using Microsoft.Azure.Cosmos.Scripts;
@@ -12,6 +13,9 @@ namespace Dodo.AspNet.SessionProviders.CosmosDb
 {
     internal class CosmosSessionDatabase : ISessionDatabase
     {
+        private const string LifetimeExtensionItemKey =
+            "Dodo.AspNet.SessionProviders.CosmosDb.CosmosSessionDatabase.LifetimeExtensionItemKey";
+
         private static readonly TraceSource Trace =
             new TraceSource("Dodo.AspNet.SessionProviders.CosmosDb");
 
@@ -28,10 +32,10 @@ namespace Dodo.AspNet.SessionProviders.CosmosDb
         private readonly int _lockTtlSeconds;
 
         private CosmosClient _client;
-        private Container _contents;
         private bool _isInitialized;
 
-        private Container _locks;
+        private Container _container;
+
         private string _lockSpBody = LoadLockSpBody();
         private string _tryLockSpName;
         private readonly ConsistencyLevel _consistencyLevel;
@@ -46,7 +50,8 @@ namespace Dodo.AspNet.SessionProviders.CosmosDb
             _consistencyLevel = consistencyLevel;
         }
 
-        public async Task<(SessionStateValue state, bool isNew)> GetSessionAsync(string sessionId, bool extendLifespan)
+        public async Task<(SessionStateValue state, bool isNew)> GetSessionAsync(HttpContextBase context,
+            string sessionId)
         {
             var partitionKey = new PartitionKey(sessionId);
             var itemRequestOptions = new ItemRequestOptions
@@ -55,15 +60,12 @@ namespace Dodo.AspNet.SessionProviders.CosmosDb
             };
             try
             {
-                var storedState = await _contents.ReadItemAsync<SessionStateRecord>(
+                var storedState = await _container.ReadItemAsync<SessionStateRecord>(
                     sessionId, partitionKey, itemRequestOptions);
 
                 TraceRequestCharge(storedState, "GetSessionAsync: ReadItemAsync");
 
-                if (extendLifespan)
-                {
-                    await ExtendLifespan(storedState.Resource);
-                }
+                RegisterForLifespanExtension(context, storedState.Resource);
 
                 var resourcePayload = storedState.Resource.Payload;
 
@@ -88,11 +90,33 @@ namespace Dodo.AspNet.SessionProviders.CosmosDb
             }
         }
 
-        public async Task Remove(string sessionId)
+        private void RegisterForLifespanExtension(HttpContextBase context,
+            SessionStateRecord storedStateResource)
         {
+            context.Items[LifetimeExtensionItemKey] = storedStateResource;
+        }
+
+        private void DeregisterLifetimeExtension(HttpContextBase context)
+        {
+            context.Items.Remove(LifetimeExtensionItemKey);
+        }
+
+        private SessionStateRecord TryGetLifetimeExtensionItem(HttpContextBase context)
+        {
+            if (!context.Items.Contains(LifetimeExtensionItemKey))
+            {
+                return null;
+            }
+
+            return (SessionStateRecord) context.Items[LifetimeExtensionItemKey];
+        }
+
+        public async Task Remove(HttpContextBase context, string sessionId)
+        {
+            DeregisterLifetimeExtension(context);
             try
             {
-                var response = await _contents.DeleteItemAsync<SessionStateRecord>(sessionId,
+                var response = await _container.DeleteItemAsync<SessionStateRecord>(sessionId,
                     new PartitionKey(sessionId),
                     new ItemRequestOptions
                     {
@@ -110,8 +134,8 @@ namespace Dodo.AspNet.SessionProviders.CosmosDb
 
             try
             {
-                var response = await _locks.DeleteItemAsync<SessionLockRecord>(sessionId,
-                    new PartitionKey(sessionId),
+                var response = await _container.DeleteItemAsync<SessionLockRecord>(MakeLockKey(sessionId),
+                    new PartitionKey(MakeLockKey(sessionId)),
                     new ItemRequestOptions
                     {
                         ConsistencyLevel = _consistencyLevel,
@@ -142,12 +166,12 @@ namespace Dodo.AspNet.SessionProviders.CosmosDb
             async Task<(bool lockTaken, DateTime lockDate, object lockId)> AcquireLockOptimistic()
             {
                 var now = DateTime.UtcNow;
-                var response = await _locks.CreateItemAsync(new SessionLockRecord
+                var response = await _container.CreateItemAsync(new SessionLockRecord
                     {
-                        SessionId = sessionId,
+                        LockId = MakeLockKey(sessionId),
                         CreatedDate = now,
                         TtlSeconds = _lockTtlSeconds,
-                    }, new PartitionKey(sessionId),
+                    }, new PartitionKey(MakeLockKey(sessionId)),
                     new ItemRequestOptions
                     {
                         ConsistencyLevel = _consistencyLevel,
@@ -161,8 +185,9 @@ namespace Dodo.AspNet.SessionProviders.CosmosDb
             async Task<(bool lockTaken, DateTime lockDate, object lockId)> AcquireLockPessimistic()
             {
                 var now = DateTime.UtcNow;
-                var response = await _locks.Scripts.ExecuteStoredProcedureAsync<TryLockResponse>(
-                    _tryLockSpName, new PartitionKey(sessionId), new dynamic[] {sessionId, now, _lockTtlSeconds});
+                var response = await _container.Scripts.ExecuteStoredProcedureAsync<TryLockResponse>(
+                    _tryLockSpName, new PartitionKey(MakeLockKey(sessionId)),
+                    new dynamic[] {MakeLockKey(sessionId), now, _lockTtlSeconds});
                 TraceRequestCharge(response, $"TryAcquireLock: ExecuteStoredProcedureAsync: {_tryLockSpName}");
                 var resource = response.Resource;
                 return (resource.Locked, resource.CreatedDate, resource.ETag);
@@ -184,8 +209,8 @@ namespace Dodo.AspNet.SessionProviders.CosmosDb
             {
                 try
                 {
-                    var response = await _locks.DeleteItemAsync<SessionLockRecord>(sessionId,
-                        new PartitionKey(sessionId),
+                    var response = await _container.DeleteItemAsync<SessionLockRecord>(MakeLockKey(sessionId),
+                        new PartitionKey(MakeLockKey(sessionId)),
                         new ItemRequestOptions
                         {
                             ConsistencyLevel = _consistencyLevel,
@@ -216,9 +241,10 @@ namespace Dodo.AspNet.SessionProviders.CosmosDb
             return Task.CompletedTask;
         }
 
-        public async Task WriteContents(string sessionId, SessionStateValue stateValue,
+        public async Task WriteContents(HttpContextBase context, string sessionId, SessionStateValue stateValue,
             bool isNew)
         {
+            DeregisterLifetimeExtension(context);
             var now = DateTime.UtcNow;
 
             var compressionSw = Stopwatch.StartNew();
@@ -227,7 +253,7 @@ namespace Dodo.AspNet.SessionProviders.CosmosDb
             Trace.TraceEvent(TraceEventType.Verbose, 4,
                 $"{now.ToString("o")} WriteContents: Serialize. Size: {payload.Length}, Elapsed: {compressionSw.Elapsed.TotalSeconds.ToString()}");
 
-            var response = await _contents.UpsertItemAsync(new SessionStateRecord
+            var response = await _container.UpsertItemAsync(new SessionStateRecord
                 {
                     SessionId = sessionId,
                     CreatedDate = now,
@@ -259,8 +285,14 @@ namespace Dodo.AspNet.SessionProviders.CosmosDb
             InitializeAsync().Wait();
         }
 
-        private async Task ExtendLifespan(SessionStateRecord state)
+        public async Task ExtendLifetime(HttpContextBase context)
         {
+            var state = TryGetLifetimeExtensionItem(context);
+            if (state == null)
+            {
+                return;
+            }
+
             var now = DateTime.UtcNow;
 
             var proximityFactor = 1.0 / 3.0;
@@ -278,7 +310,7 @@ namespace Dodo.AspNet.SessionProviders.CosmosDb
             try
             {
                 state.CreatedDate = now;
-                var response = await _contents.ReplaceItemAsync(state, state.SessionId,
+                var response = await _container.ReplaceItemAsync(state, state.SessionId,
                     new PartitionKey(state.SessionId),
                     new ItemRequestOptions
                     {
@@ -299,8 +331,8 @@ namespace Dodo.AspNet.SessionProviders.CosmosDb
         {
             _client = new CosmosClient(_connectionString, new CosmosClientOptions
             {
-                RequestTimeout = TimeSpan.FromSeconds(_lockTtlSeconds / 2),
-                MaxRetryWaitTimeOnRateLimitedRequests = TimeSpan.FromSeconds(_lockTtlSeconds / 2),
+                RequestTimeout = TimeSpan.FromSeconds(_lockTtlSeconds / 2.0),
+                MaxRetryWaitTimeOnRateLimitedRequests = TimeSpan.FromSeconds(_lockTtlSeconds / 2.0),
             });
 
             CheckValidResponse(await _client.CreateDatabaseIfNotExistsAsync(_databaseId));
@@ -313,21 +345,13 @@ namespace Dodo.AspNet.SessionProviders.CosmosDb
             };
 
             CheckValidResponse(await db.CreateContainerIfNotExistsAsync(
-                new ContainerProperties("locks", "/id")
+                new ContainerProperties("SessionStore", "/id")
                 {
                     IndexingPolicy = indexNone,
                     DefaultTimeToLive = 300,
                 }));
 
-            CheckValidResponse(await db.CreateContainerIfNotExistsAsync(
-                new ContainerProperties("contents", "/id")
-                {
-                    IndexingPolicy = indexNone,
-                    DefaultTimeToLive = 300,
-                }));
-
-            _locks = db.GetContainer("locks");
-            _contents = db.GetContainer("contents");
+            _container = db.GetContainer("SessionStore");
 
             await CreateLockSp();
         }
@@ -358,11 +382,11 @@ namespace Dodo.AspNet.SessionProviders.CosmosDb
             _tryLockSpName = spName;
             try
             {
-                await _locks.Scripts.ReadStoredProcedureAsync(_tryLockSpName);
+                await _container.Scripts.ReadStoredProcedureAsync(_tryLockSpName);
             }
             catch (CosmosException e) when (e.StatusCode == HttpStatusCode.NotFound)
             {
-                await _locks.Scripts.CreateStoredProcedureAsync(
+                await _container.Scripts.CreateStoredProcedureAsync(
                     new StoredProcedureProperties(_tryLockSpName, _lockSpBody));
             }
 
@@ -391,6 +415,11 @@ namespace Dodo.AspNet.SessionProviders.CosmosDb
             var now = DateTime.UtcNow;
             Trace.TraceEvent(TraceEventType.Verbose, 0,
                 $"{now.ToString("o")} {what}. RU: {exception.RequestCharge}. HTTP: {exception.StatusCode}. Exp: {exception.Message}. Client Elapsed: {exception.Diagnostics.GetClientElapsedTime().TotalSeconds.ToString()}");
+        }
+
+        private static string MakeLockKey(string sessionId)
+        {
+            return sessionId + "_lock";
         }
     }
 }

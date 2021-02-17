@@ -5,7 +5,7 @@ namespace Dodo.AspNet.SessionProviders.CosmosDb
 {
     internal sealed class SessionLockRecord
     {
-        [JsonProperty(PropertyName = "id")] public string SessionId { get; set; }
+        [JsonProperty(PropertyName = "id")] public string LockId { get; set; }
 
         [JsonProperty(PropertyName = "ttl")] public int TtlSeconds { get; set; }
 

@@ -1,10 +1,10 @@
-function tryLock(sessionId, createdDate, ttl) {
+function tryLock(lockId, createdDate, ttl) {
     var collection = getContext().getCollection();
     var collectionLink = collection.getSelfLink();
     var response = getContext().getResponse();
 
-    var query = 'select * from root r where r.id = "' + sessionId + '"';
-    collection.queryDocuments(collectionLink, query, {}, function(err, documents, responseOptions) {
+    var query = 'select * from root r where r.id = "' + lockId + '"';
+    collection.queryDocuments(collectionLink, query, {}, function(err, documents) {
         if (err)
         {
             throw err;
@@ -22,7 +22,7 @@ function tryLock(sessionId, createdDate, ttl) {
     });
 
     function createNewLockRecord() {
-        var lockItem = {id: sessionId, createdDate: createdDate, ttl: ttl}; // createdDate
+        let lockItem = {id: lockId, createdDate: createdDate, ttl: ttl};
         collection.createDocument(collectionLink, lockItem,
             function (err, createdDocument) {
                 if (err) {

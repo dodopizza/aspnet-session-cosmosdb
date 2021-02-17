@@ -124,6 +124,7 @@
     <Compile Include="App_Start\FilterConfig.cs" />
     <Compile Include="App_Start\RouteConfig.cs" />
     <Compile Include="Controllers\HomeController.cs" />
+    <Compile Include="Controllers\LockWithoutWriteController.cs" />
     <Compile Include="Controllers\ReadOnlySession.cs" />
     <Compile Include="Controllers\WriteToSession.cs" />
     <Compile Include="Global.asax.cs">
@@ -140,6 +141,7 @@
     <Content Include="fonts\glyphicons-halflings-regular.svg" />
     <Content Include="Global.asax" />
     <Content Include="Content\Site.css" />
+    <Content Include="Views\LockWithoutWrite\Index.cshtml" />
     <Content Include="Views\ReadOnlySession\Index.cshtml" />
     <Content Include="Views\WriteToSession\Index.cshtml" />
     <Content Include="Web.config" />
