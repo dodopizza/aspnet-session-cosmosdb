@@ -51,7 +51,7 @@ Following configuration snippet specifies connection string in `connectionString
                 <add
                         name="myProvider"
                         type="DodoBrands.AspNet.SessionProviders.Cosmos.CosmosDbSessionStateProvider"
-                        xLockTtlSeconds="10"
+                        xLockTtlSeconds="30"
                         databaseId="testdb"
                         compressionEnabled="true"
                         connectionString="AccountEndpoint=https://localhost:8081/;AccountKey=C2y6yDjf5/R+ob0N8A7Cgv30VRDJIWEHLM+4QDU5DE2nQ9nDuVTqobD4b8mGGyPMbIZnqyMsEcaGQy67XIw/Jw==" />
@@ -96,9 +96,9 @@ Default is `true`. When set to true, session contents will be GZip-compressed, s
 -
 specifies Azure Cosmos DB consistency level used for operations.
 One of the levels specified here: https://docs.microsoft.com/en-us/dotnet/api/microsoft.azure.cosmos.consistencylevel?view=azure-dotnet
-`Strong` (default) should be used in multi-region setup.
-`BoundedStaleness` can be used in a single-region setup, it provides the same guarantees in single region.
-:radioactive: `Session` can only be used in a test environment when using Cosmos DB Emulator.
+* `Strong` (default) should be used in multi-region setup.
+* `BoundedStaleness` can be used in a single-region setup, it provides the same guarantees in single region.
+* `Session` :biohazard: this consistency level can only be used in a test environment when using Cosmos DB Emulator.
 > :biohazard: **WARNING!** Don't copy-paste `Session` consistency level from sample application config file, it is not suitable for production. 
 
 See also: https://docs.microsoft.com/en-us/azure/cosmos-db/consistency-levels
