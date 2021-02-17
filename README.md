@@ -76,7 +76,7 @@ The provider will create `SessionStore` container in this database on first exec
 -
 Specifies the TTL for the locks in seconds. Basically it is a tradeoff between consistency and error resilience. The time period in seconds specified by this parameter should be long enough to encompass any possible request duration that requires session write consistency.
 
-> :thinking: **WARNING!** If this TTL values is too short, longer requests might experience inconsistency in session writes. The risk here is that one request might overwrite session contents out of turn and user session data might be lost this way.
+> :mega: **WARNING!** If this TTL values is too short, longer requests might experience inconsistency in session writes. The risk here is that one request might overwrite session contents out of turn and user session data might be lost this way.
 On the other hand, if TTL is too long, session might be stuck in locked state after an application crash, so choose long `xLockTtlSeconds` parameter only if your application is stable enough.
 
 `timeout`
@@ -86,7 +86,7 @@ Sliding expiration will not be extended until 25% of the TTL has been passed by 
 This is done to reduce the number of expensive write operations in the database.
 So, if you need your session to last at least some value, multiply it by 4/3. For example, if you need your session to last *at least* 20 minutes, you need to specify 20 * 4 / 3 = 27 minutes. This way, session is guaranteed to last for 20 minutes, but it can also live as long as 27 minutes after the last request, depending on the actual request timings.
 
-> :innocent: **WARNING!** Effective value of the sliding expiration will be anywhere between 75% and 100% of the specified timeout value.
+> :mega: **WARNING!** Effective value of the sliding expiration will be anywhere between 75% and 100% of the specified timeout value.
 
 `compressionEnabled`
 -
@@ -99,7 +99,7 @@ One of the levels specified here: https://docs.microsoft.com/en-us/dotnet/api/mi
 `Strong` (default) should be used in multi-region setup.
 `BoundedStaleness` can be used in a single-region setup, it provides the same guarantees in single region.
 :radioactive: `Session` can only be used in a test environment when using Cosmos DB Emulator.
-> :radioactive: **WARNING!** Don't copy-paste `Session` consistency level from sample application config file, it is not suitable for production. 
+> :biohazard: **WARNING!** Don't copy-paste `Session` consistency level from sample application config file, it is not suitable for production. 
 
 See also: https://docs.microsoft.com/en-us/azure/cosmos-db/consistency-levels
 
