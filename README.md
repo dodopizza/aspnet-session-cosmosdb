@@ -190,6 +190,12 @@ Uses RecyclableMemoryStreams thanks to the https://github.com/microsoft/Microsof
 
 Uses GZip compression for maximum economy of request units in Azure Cosmos DB, even if your session objects are large.
 
+## Local development
+
+The sample app and tests are configured with Cosmos DB Emulator connection string.
+You might wish to install the emulator if you are planning 
+https://docs.microsoft.com/en-us/azure/cosmos-db/local-emulator?tabs=cli%2Cssl-netstd21
+
 ## Contributing
 
 Contributions are welcome, you can start by creating an issue on GitHub and opening a pull request after discussing the issue.
