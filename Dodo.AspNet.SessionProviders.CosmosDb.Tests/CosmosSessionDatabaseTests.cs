@@ -1,5 +1,7 @@
 using System;
 using System.Diagnostics;
+using System.Linq;
+using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Azure.Cosmos;
@@ -78,6 +80,47 @@ namespace Dodo.AspNet.SessionProviders.CosmosDb
             var (lockTaken, _, _) = await Db.TryAcquireLock(id);
 
             Assert.IsTrue(lockTaken);
+        }
+
+        [Test]
+        public async Task RaceConditionInStoredProcedure()
+        {
+            var start = new TaskCompletionSource<bool>();
+
+            var numTries = 100;
+
+            var sessionId = Guid.NewGuid().ToString("N");
+
+            async Task<int> UserAgent(int slot)
+            {
+                await start.Task;
+
+                for (var i = 0; i < numTries; i++)
+                {
+                    try
+                    {
+                        var (lockTaken, _, lockId) = await Db.TryAcquireLock(sessionId);
+                        if (lockTaken)
+                        {
+                            await Db.TryReleaseLock(sessionId, lockId);
+                        }
+                    }
+                    catch (CosmosException e) when (e.StatusCode == HttpStatusCode.Conflict)
+                    {
+                        return i + 1;
+                    }
+                }
+
+                return numTries;
+            }
+
+            var many = Enumerable.Range(0, 2).Select(UserAgent).ToList();
+            start.SetResult(true);
+            var results = await Task.WhenAll(many);
+            if (results.Any(r => r != numTries))
+            {
+                Assert.Fail($"Expected all to complete {numTries} requests, actual: {string.Join(",", results)}");
+            }
         }
 
         private ISessionDatabase Db => _db.Value;
