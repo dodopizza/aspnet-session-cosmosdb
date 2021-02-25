@@ -83,15 +83,22 @@ namespace Dodo.AspNet.SessionProviders.CosmosDb
         }
 
         [Test]
+        [Explicit]
         public async Task RaceConditionInStoredProcedure()
         {
             var start = new TaskCompletionSource<bool>();
 
-            var numTries = 100;
+            var numTries = 1000;
 
-            var sessionId = Guid.NewGuid().ToString("N");
+            var sessionId = nameof(RaceConditionInStoredProcedure);
 
-            async Task<int> UserAgent(int slot)
+            var concurrency = 2;
+
+            var userAgents = Enumerable.Range(0, concurrency)
+                .Select(i => (i, Db: CreateDatabase()))
+                .ToList();
+
+            async Task<int> RunUserAgent((int slot, CosmosSessionDatabase db) testCase)
             {
                 await start.Task;
 
@@ -99,27 +106,29 @@ namespace Dodo.AspNet.SessionProviders.CosmosDb
                 {
                     try
                     {
-                        var (lockTaken, _, lockId) = await Db.TryAcquireLock(sessionId);
+                        var (lockTaken, _, lockId) = await testCase.db.TryAcquireLock(sessionId);
                         if (lockTaken)
                         {
-                            await Db.TryReleaseLock(sessionId, lockId);
+                            await testCase.db.TryReleaseLock(sessionId, lockId);
                         }
                     }
-                    catch (CosmosException e) when (e.StatusCode == HttpStatusCode.Conflict)
+                    catch (CosmosException e)
+                        when (e.StatusCode == HttpStatusCode.BadRequest &&
+                              e.SubStatusCode == (int) HttpStatusCode.Conflict)
                     {
-                        return i + 1;
+                        return i;
                     }
                 }
 
                 return numTries;
             }
 
-            var many = Enumerable.Range(0, 2).Select(UserAgent).ToList();
+            var many = userAgents.Select(RunUserAgent).ToList();
             start.SetResult(true);
-            var results = await Task.WhenAll(many);
-            if (results.Any(r => r != numTries))
+            var firstResult = await await Task.WhenAny(many);
+            if (firstResult != numTries)
             {
-                Assert.Fail($"Expected all to complete {numTries} requests, actual: {string.Join(",", results)}");
+                Assert.Fail($"Expected all to complete {numTries} requests, but some task returned: {firstResult}");
             }
         }
 

@@ -158,27 +158,51 @@ namespace Dodo.AspNet.SessionProviders.CosmosDb
                 var optimisticTry = await AcquireLockOptimistic();
                 return optimisticTry;
             }
-            catch (CosmosException e) when (e.StatusCode == HttpStatusCode.Conflict)
+            catch (CosmosException optimisticFailedException)
+                when (IsConflictPointWrite(optimisticFailedException))
             {
-                var numberOfRetries = 1;
+                var numberOfRetries = 3;
+
+                var r = new Random(Guid.NewGuid().GetHashCode());
+
                 for (var i = 0; i < numberOfRetries; i++)
                 {
                     try
                     {
                         return await AcquireLockPessimistic(i);
                     }
-                    catch (CosmosException retryException)
-                        when (
-                            retryException.StatusCode == HttpStatusCode.BadRequest
-                            && retryException.SubStatusCode == (int) HttpStatusCode.Conflict)
+                    catch (CosmosException pessimisticFailedException)
+                        when (IsConflictStoredProcedure(pessimisticFailedException))
                     {
-                        Trace.TraceEvent(TraceEventType.Warning, 6, $"Retryable exception. Iteration {i} of {numberOfRetries + 1}. Will retry...");
+                        Trace.TraceEvent(TraceEventType.Warning, 6,
+                            $"Retryable exception. Iteration {i} of {numberOfRetries + 1}. Will retry...");
                     }
 
-                    await Task.Delay(TimeSpan.FromSeconds(0.030));
+                    await Task.Delay(TimeSpan.FromMilliseconds(r.Next(10, 50)));
                 }
 
                 return await AcquireLockPessimistic(numberOfRetries);
+            }
+
+            bool IsConflictPointWrite(CosmosException cosmosException)
+            {
+                return cosmosException.StatusCode == HttpStatusCode.Conflict;
+            }
+
+            bool IsConflictStoredProcedure(CosmosException e)
+            {
+                if (e.StatusCode == HttpStatusCode.BadRequest && e.SubStatusCode == (int) HttpStatusCode.Conflict)
+                {
+                    return true;
+                }
+
+                // Microsoft.Azure.Cosmos.CosmosException : Response status code does not indicate success: 449 (449); Substatus: 0; ActivityId: ***; Reason: (Message: {"Errors":["Conflicting request to resource has been attempted. Retry to avoid conflicts."]}
+                if ((int) e.StatusCode == 449 && e.SubStatusCode == 0)
+                {
+                    return true;
+                }
+
+                return false;
             }
 
             async Task<(bool lockTaken, DateTime lockDate, object lockId)> AcquireLockOptimistic()
@@ -206,7 +230,8 @@ namespace Dodo.AspNet.SessionProviders.CosmosDb
                 var response = await _container.Scripts.ExecuteStoredProcedureAsync<TryLockResponse>(
                     _tryLockSpName, new PartitionKey(MakeLockKey(sessionId)),
                     new dynamic[] {MakeLockKey(sessionId), now, _lockTtlSeconds});
-                TraceRequestCharge(response, $"TryAcquireLock: Pessimistic: ExecuteStoredProcedureAsync: {_tryLockSpName}, Iteration: {iteration}");
+                TraceRequestCharge(response,
+                    $"TryAcquireLock: Pessimistic: ExecuteStoredProcedureAsync: {_tryLockSpName}, Iteration: {iteration}");
                 var resource = response.Resource;
                 return (resource.Locked, resource.CreatedDate, resource.ETag);
             }
