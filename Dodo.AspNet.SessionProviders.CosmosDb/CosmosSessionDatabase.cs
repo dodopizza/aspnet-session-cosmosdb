@@ -160,7 +160,25 @@ namespace Dodo.AspNet.SessionProviders.CosmosDb
             }
             catch (CosmosException e) when (e.StatusCode == HttpStatusCode.Conflict)
             {
-                return await AcquireLockPessimistic();
+                var numberOfRetries = 1;
+                for (var i = 0; i < numberOfRetries; i++)
+                {
+                    try
+                    {
+                        return await AcquireLockPessimistic(i);
+                    }
+                    catch (CosmosException retryException)
+                        when (
+                            retryException.StatusCode == HttpStatusCode.BadRequest
+                            && retryException.SubStatusCode == (int) HttpStatusCode.Conflict)
+                    {
+                        Trace.TraceEvent(TraceEventType.Warning, 6, $"Retryable exception. Iteration {i} of {numberOfRetries + 1}. Will retry...");
+                    }
+
+                    await Task.Delay(TimeSpan.FromSeconds(0.030));
+                }
+
+                return await AcquireLockPessimistic(numberOfRetries);
             }
 
             async Task<(bool lockTaken, DateTime lockDate, object lockId)> AcquireLockOptimistic()
@@ -182,13 +200,13 @@ namespace Dodo.AspNet.SessionProviders.CosmosDb
                 return (true, now, resource.ETag);
             }
 
-            async Task<(bool lockTaken, DateTime lockDate, object lockId)> AcquireLockPessimistic()
+            async Task<(bool lockTaken, DateTime lockDate, object lockId)> AcquireLockPessimistic(int iteration)
             {
                 var now = DateTime.UtcNow;
                 var response = await _container.Scripts.ExecuteStoredProcedureAsync<TryLockResponse>(
                     _tryLockSpName, new PartitionKey(MakeLockKey(sessionId)),
                     new dynamic[] {MakeLockKey(sessionId), now, _lockTtlSeconds});
-                TraceRequestCharge(response, $"TryAcquireLock: ExecuteStoredProcedureAsync: {_tryLockSpName}");
+                TraceRequestCharge(response, $"TryAcquireLock: Pessimistic: ExecuteStoredProcedureAsync: {_tryLockSpName}, Iteration: {iteration}");
                 var resource = response.Resource;
                 return (resource.Locked, resource.CreatedDate, resource.ETag);
             }
