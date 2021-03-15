@@ -270,6 +270,21 @@ namespace Dodo.AspNet.SessionProviders.CosmosDb
                         3,
                         "Lock no longer exists. It might be an indication that request takes longer to process than the lock ttl in db. Consider fixing the long requests, or extend the lock timespan.");
                 }
+                catch (CosmosException e)
+                {
+                    TraceRequestCharge(e, "TryReleaseLock: DeleteItemAsync");
+                    Trace.TraceEvent(
+                        TraceEventType.Error,
+                        3,
+                        $"Fatal error releasing the lock {MakeLockKey(sessionId)}. Unidentified exception: {e}");
+                }
+                catch (Exception e)
+                {
+                    Trace.TraceEvent(
+                        TraceEventType.Error,
+                        3,
+                        $"Fatal error releasing the lock {MakeLockKey(sessionId)}. Unidentified exception: {e}");
+                }
             }
 
             if (HostingEnvironment.IsHosted)
