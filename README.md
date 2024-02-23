@@ -50,7 +50,7 @@ Following configuration snippet specifies connection string in `connectionString
             <providers>
                 <add
                         name="myProvider"
-                        type="DodoBrands.AspNet.SessionProviders.Cosmos.CosmosDbSessionStateProvider"
+                        type="Dodo.AspNet.SessionProviders.CosmosDb.CosmosDbSessionStateProvider"
                         xLockTtlSeconds="30"
                         databaseId="testdb"
                         compressionEnabled="true"
